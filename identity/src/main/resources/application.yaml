@@ -1,7 +1,7 @@
 server:
   port: 8080
   servlet:
-    context-path: /identity
+    context-path: /identity/api/v1
 spring:
   application:
     name: identity-service
@@ -10,7 +10,7 @@ spring:
       ddl-auto: update
     show-sql: true
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/fashion_identity
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/e_identity_service
     username: root
     password: 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
