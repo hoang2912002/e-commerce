@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Spring Boot-IdentityApplication<identity>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.fashion.identity.IdentityApplication",
+            "projectName": "identity",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}
