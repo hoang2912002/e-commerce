@@ -1,5 +1,6 @@
 package com.fashion.identity.service.impls;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -7,8 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.identity.common.enums.EnumError;
+import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.exception.ServiceException;
+import com.fashion.identity.mapper.UserMapper;
 import com.fashion.identity.repository.UserRepository;
 import com.fashion.identity.service.UserService;
 
@@ -23,11 +26,15 @@ import lombok.extern.slf4j.Slf4j;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class UserServiceImpl implements UserService{
     UserRepository userRepository;
+    UserMapper userMapper;
 
     @Override
     @Transactional(readOnly = true)
     public User handleGetUserByUserName(String userName) {
         try {
+            // Connect File service get avatar URL
+
+            // Return user
             return this.userRepository.findByUserName(userName).orElseThrow(
                 () -> new ServiceException(
                     EnumError.IDENTITY_USER_ERR_NOT_FOUND_USERNAME,
@@ -37,6 +44,39 @@ public class UserServiceImpl implements UserService{
             );
         } catch (Exception e) {
             log.error("INTERNAL-SERVICE: handleGetUserByUserName(): {}", e.getMessage());
+            throw e;
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public User updateRefreshTokenUserByUserName(String userName, String refreshToken) {
+        try {
+            User user = this.userRepository.findByUserName(userName).orElseThrow(
+                () -> new ServiceException(
+                    EnumError.IDENTITY_USER_ERR_NOT_FOUND_USERNAME,
+                    "user.not.found.userName",
+                    Map.of("userName", userName)
+                )
+            );
+            user.setRefreshToken(refreshToken);
+            return this.userRepository.save(user);
+        } catch (ServiceException e){
+            throw e;
+        } catch (Exception e) {
+            log.error("INTERNAL-SERVICE: updateRefreshTokenUserByUserName(): {}", e.getMessage());
+            throw e;
+        }
+        
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserResponse> getAllUsers() {
+        try {
+            return this.userRepository.findAll().stream().map(this.userMapper::toDtoNotRelationship).toList();
+        } catch (Exception e) {
+            log.error("INTERNAL-SERVICE: getAllUsers(): {}", e.getMessage());
             throw e;
         }
     }

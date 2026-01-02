@@ -12,8 +12,14 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public enum EnumError {
 
+    // Auth
     IDENTITY_USER_ERR_NOT_FOUND_USERNAME("IDENTITY-USER_ERR-NOT-FOUND-USERNAME","Not found user with userName:",HttpStatus.BAD_REQUEST),
-    IDENTITY_INTERNAL_ERROR_CALL_API("IDENTITY-INTERNAL-ERROR-CALL-API", "Call Identity Service api error", HttpStatus.INTERNAL_SERVER_ERROR)
+    IDENTITY_USER_ERR_NOT_FOUND_USERNAME_PASSWORD("IDENTITY-USER_ERR-NOT-FOUND-USERNAME-PASSWORD","Invalid account/password",HttpStatus.BAD_REQUEST),
+    IDENTITY_USER_INVALID_REFRESH_TOKEN("IDENTITY-USER-INVALID-REFRESH-TOKEN","User already with invalid Refresh token:",HttpStatus.BAD_REQUEST),
+    IDENTITY_AUTHENTICATION_FAILED("IDENTITY-AUTHENTICATION-FAILED","Authentication failed for user:",HttpStatus.UNAUTHORIZED),
+    // Server
+    IDENTITY_INTERNAL_ERROR_CALL_API("IDENTITY-INTERNAL-ERROR-CALL-API", "Call Identity Service api error", HttpStatus.INTERNAL_SERVER_ERROR),
+    IDENTITY_VALIDATION_ERROR("IDENTITY-VALIDATION-ERROR","Validation error",HttpStatus.BAD_REQUEST),
     ;
 
     String code;

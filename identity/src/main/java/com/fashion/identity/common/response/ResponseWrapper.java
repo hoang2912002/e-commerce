@@ -56,7 +56,7 @@ public class ResponseWrapper implements ResponseBodyAdvice<Object>{
         }
 
         ApiMessageResponse messageResponse = returnType.getMethodAnnotation(ApiMessageResponse.class);
-        String message = messageResponse != null ? messageResponse.value() : "sys.internal.success";
+        String message = messageResponse != null ? messageResponse.value() : "server.call.api.success";
 
         String path = request.getURI().getPath();
 

@@ -10,6 +10,10 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -31,6 +35,32 @@ import lombok.experimental.FieldDefaults;
 public class GlobalException {
     MessageUtil messageUtil;
 
+    // Xử lý lỗi Security (UsernameNotFound, BadCredentials)
+    @ExceptionHandler({UsernameNotFoundException.class, BadCredentialsException.class})
+    public ResponseEntity<ApiResponse<Object>> handleSecurityException(Exception ex, HttpServletRequest request) {
+        String languageHeader = request.getHeader(HttpHeaders.ACCEPT_LANGUAGE);
+        Locale locale = request.getLocale(); // ⭐ RECOMMENDED
+        LocaleContext localeContext = () -> locale;
+
+        String message = messageUtil.getMessage("auth.login.fail", localeContext);
+        String messageFieldAccount = messageUtil.getMessage("auth.login.userName.invalid", localeContext);
+        String messageFieldPassword = messageUtil.getMessage("auth.login.password.invalid", localeContext);
+        Map<String, Object> errors = Map.of("userName", messageFieldAccount, "password", messageFieldPassword);
+        ApiResponse<Object> res = ApiResponse.builder()
+                .success(false)
+                .code(HttpStatus.UNAUTHORIZED.value())
+                .errorCode(EnumError.IDENTITY_USER_ERR_NOT_FOUND_USERNAME_PASSWORD.getCode())
+                .message(message)
+                .path(request.getRequestURI())
+                .language(languageHeader)
+                .timestamp(LocalDateTime.now())
+                .errors(errors)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(res);
+    }
+
+    // Xử lý lỗi Business exception
     @ExceptionHandler(value = ServiceException.class)
     public ResponseEntity<ApiResponse> handleServiceException(ServiceException ex, HttpServletRequest request) {
 
@@ -77,12 +107,32 @@ public class GlobalException {
                 .code(HttpStatus.BAD_REQUEST.value())
                 .message(message)
                 .language(languageHeader)
-                .errorCode(messageCode)
+                .errorCode(EnumError.IDENTITY_VALIDATION_ERROR.getCode())
                 .errors(Map.of(fieldName, message))
                 .timestamp(LocalDateTime.now())
                 .path(path)
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
+        String languageHeader = request.getHeader(HttpHeaders.ACCEPT_LANGUAGE);
+        Locale locale = request.getLocale();
+        LocaleContext localeContext = () -> locale;
+        String message = messageUtil.getMessage("auth.token.invalid.login.again", localeContext);
+        ApiResponse<Object> res = ApiResponse.builder()
+                .success(false)
+                .code(HttpStatus.UNAUTHORIZED.value())
+                .errorCode(EnumError.IDENTITY_AUTHENTICATION_FAILED.getCode())
+                .message(message)
+                .path(request.getRequestURI())
+                .errors(Map.of("accessToken", message))
+                .timestamp(LocalDateTime.now())
+                .language(languageHeader)
+                .build();
+                
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(res);
     }
 }

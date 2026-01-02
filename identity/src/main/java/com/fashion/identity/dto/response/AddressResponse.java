@@ -1,9 +1,9 @@
 package com.fashion.identity.dto.response;
 
 import java.time.Instant;
-import java.util.List;
+import java.util.UUID;
 
-import com.fashion.identity.dto.response.PermissionResponse.InnerPermissionResponse;
+import javax.swing.text.StyledEditorKit.BoldAction;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -17,24 +17,30 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class RoleResponse {
-    Long id;
-    String name;
-    String slug;
+public class AddressResponse {
+    UUID id;
+    String address;
+    String district;
+    String province;
+    String ward;
+    UUID userId;
+    Boolean currentUserAddress;
+    String shopManagementId;
     String createdBy;
-    String updatedBy;
     Instant createdAt;
+    String updatedBy;
     Instant updatedAt;
-    List<InnerPermissionResponse> permissions;
 
     @NoArgsConstructor
     @AllArgsConstructor
     @Data
     @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class InnerRoleResponse {
-        Long id;
-        String name;
-        String slug;
+    public static class InnerAddressResponse {
+        UUID id;
+        String address;
+        String district;
+        String province;
+        String ward;
     }
 }
