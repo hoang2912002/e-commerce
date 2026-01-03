@@ -4,14 +4,18 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.identity.common.annotation.ApiMessageResponse;
+import com.fashion.identity.common.response.ApiResponse;
 import com.fashion.identity.dto.request.LoginRequest;
+import com.fashion.identity.dto.request.VerifyTokenRequest;
 import com.fashion.identity.dto.response.LoginResponse;
+import com.fashion.identity.dto.response.VerifyTokenResponse;
 import com.fashion.identity.dto.response.LoginResponse.LoginResponseUserData;
 import com.fashion.identity.entity.Role;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.mapper.RoleMapper;
 import com.fashion.identity.service.AuthenticateService;
 import com.fashion.identity.service.UserService;
+import com.nimbusds.jose.JOSEException;
 
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
@@ -36,7 +40,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 
 
 @RestController
-@RequestMapping("/admin/auth")
+@RequestMapping("/auth")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AuthenticateController {
@@ -106,4 +110,10 @@ public class AuthenticateController {
             .body(responseLoginDTO);
     }
     
+    @PostMapping("/verifyAccessToken")
+    ResponseEntity<VerifyTokenResponse> verifyAccessToken(@RequestBody VerifyTokenRequest request)
+    {
+        boolean result = authenticateService.verifyAccessToken(request.getToken());
+        return ResponseEntity.ok(VerifyTokenResponse.builder().isValid(true).build());
+    }
 }

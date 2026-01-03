@@ -1,0 +1,25 @@
+server:
+  port: 8000
+app:
+  api-prefix: /api/v1
+service:
+  identity:
+    url: http://localhost:8080
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+          - id: identity-service
+            uri: ${service.identity.url}
+            predicates:
+            - Path=${app.api-prefix}/identity/**
+            filters:
+              - StripPrefix=2
+jwt:
+  base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
+  access-token-in-seconds: 86400
+  refresh-token-in-seconds: 2592000

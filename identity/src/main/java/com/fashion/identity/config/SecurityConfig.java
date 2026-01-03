@@ -42,11 +42,11 @@ public class SecurityConfig {
                     .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(exceptions ->
-                exceptions
-                    .authenticationEntryPoint(authenticationEntryPoint)
-                    .accessDeniedHandler(new BearerTokenAccessDeniedHandler())
-            )
+            // .exceptionHandling(exceptions ->
+            //     exceptions
+            //         .authenticationEntryPoint(authenticationEntryPoint)
+            //         .accessDeniedHandler(new BearerTokenAccessDeniedHandler())
+            // )
             .formLogin(f -> f.disable())
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(Customizer.withDefaults())

@@ -2,7 +2,6 @@ package com.fashion.identity.config;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -12,7 +11,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,9 +22,7 @@ import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import com.fashion.identity.common.enums.GenderEnum;
-import com.fashion.identity.common.util.SlugUtil;
 import com.fashion.identity.common.util.SplitCamelCase;
-import com.fashion.identity.dto.response.PermissionResponse;
 import com.fashion.identity.entity.Permission;
 import com.fashion.identity.entity.Role;
 import com.fashion.identity.entity.User;
@@ -67,8 +63,8 @@ public class SetUpDataLoader implements ApplicationListener<ContextRefreshedEven
             //Module
             String[] arrPath = path.split("/"); 
             String module = "UNKNOWN";
-            if (arrPath.length > 2) {
-                String second = arrPath[2].toUpperCase();
+            if (arrPath.length > 1 && !arrPath[arrPath.length - 1].contains("error") ) {
+                String second = arrPath[1].toUpperCase();
                 // module = arrPath.length > 3 ? arrPath[2].toUpperCase() : second;
                 module = second;
 
@@ -104,17 +100,19 @@ public class SetUpDataLoader implements ApplicationListener<ContextRefreshedEven
         }
 
         Role roleDB = this.roleRepository.findBySlug("admin");
-        if(Objects.isNull(roleDB)){
-            final List<Permission> permissionList = this.permissionRepository.findAll();
-            roleDB = this.roleRepository.save(Role.builder()
-                .name("Admin")
-                .slug("admin")
-                .build());
-        }
-        else {
-            if(roleDB.getPermissions().size() != permissionsDB.size()){
-                roleDB.setPermissions(permissionsDB);
-                roleDB = this.roleRepository.save(roleDB);
+        if (roleDB == null) {
+            roleDB = roleRepository.save(
+                Role.builder()
+                    .name("Admin")
+                    .slug("admin")
+                    .permissions(new ArrayList<>(permissionsDB)) // 🔥 mutable
+                    .build()
+            );
+        } else {
+            if (roleDB.getPermissions().size() != permissionsDB.size()) {
+                roleDB.getPermissions().clear();
+                roleDB.getPermissions().addAll(permissionsDB);
+                roleRepository.save(roleDB);
             }
         }
 

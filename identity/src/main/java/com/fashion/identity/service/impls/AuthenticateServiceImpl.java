@@ -66,6 +66,11 @@ public class AuthenticateServiceImpl implements AuthenticateService{
         }
     }
 
+    @Override
+    public boolean verifyAccessToken(String token){
+        return true;
+    }
+
     private String generateToken(String userName, Long expiration,LoginResponseUserData responseUserData){
         try {
             final UserInsideToken userToken = UserInsideToken.builder()
