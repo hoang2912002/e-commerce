@@ -20,6 +20,7 @@ public class PermissionResponse {
     String apiPath;
     String method;
     String module;
+    String service;
     String createdBy;
     Instant createdAt;
     String updatedBy;
@@ -36,5 +37,6 @@ public class PermissionResponse {
         String apiPath;
         String method;
         String module;
+        String service;
     }
 }

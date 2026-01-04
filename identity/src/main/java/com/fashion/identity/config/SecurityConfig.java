@@ -20,7 +20,6 @@ import lombok.experimental.FieldDefaults;
 @RequiredArgsConstructor
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE, makeFinal = true)
 public class SecurityConfig {
-    AuthenticationEntryPoint authenticationEntryPoint;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -38,20 +37,21 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz ->
                 // prettier-ignore
                 authz
-                    .requestMatchers(whiteLists).permitAll()
-                    .anyRequest().authenticated()
+                    // .requestMatchers(whiteLists).permitAll()
+                    // .anyRequest().authenticated()
+                    .anyRequest().permitAll()
             )
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // .exceptionHandling(exceptions ->
             //     exceptions
             //         .authenticationEntryPoint(authenticationEntryPoint)
             //         .accessDeniedHandler(new BearerTokenAccessDeniedHandler())
             // )
-            .formLogin(f -> f.disable())
-            .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(Customizer.withDefaults())
-                .authenticationEntryPoint(authenticationEntryPoint)
-            );
+            .formLogin(f -> f.disable());
+            // .oauth2ResourceServer(oauth2 -> oauth2
+            //     .jwt(Customizer.withDefaults())
+            //     .authenticationEntryPoint(authenticationEntryPoint)
+            // );
         return http.build();
     }
 }

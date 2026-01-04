@@ -5,9 +5,14 @@ app:
 service:
   identity:
     url: http://localhost:8080
+  resource:
+    url: http://localhost:8087
 spring:
   application:
     name: api-gateway
+  http:
+    codecs:
+      max-in-memory-size: 1GB
   cloud:
     gateway:
       server:
@@ -17,6 +22,12 @@ spring:
             uri: ${service.identity.url}
             predicates:
             - Path=${app.api-prefix}/identity/**
+            filters:
+              - StripPrefix=2
+          - id: resource-service
+            uri: ${service.resource.url}
+            predicates:
+            - Path=${app.api-prefix}/resource/**
             filters:
               - StripPrefix=2
 jwt:

@@ -25,6 +25,17 @@
             "mainClass": "com.fashion.api_gateway.ApiGatewayApplication",
             "projectName": "api-gateway",
             "args": "",
+            "envFile": "${workspaceFolder}/.env",
+            "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=1212 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=api-gateway"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-ResourceApplication<resource>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.fashion.resource.ResourceApplication",
+            "projectName": "resource",
+            "args": "",
             "envFile": "${workspaceFolder}/.env"
         }
     ]

@@ -47,6 +47,9 @@ public class Permission extends AbstractAuditingEntity {
 
     @Column(name = "module", length = 100)
     String module;
+    
+    @Column(name = "service", length = 100)
+    String service;
 
     @ManyToMany(fetch = FetchType.LAZY, mappedBy = "permissions")
     @JsonIgnore

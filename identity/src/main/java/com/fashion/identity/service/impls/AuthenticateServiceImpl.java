@@ -2,10 +2,12 @@ package com.fashion.identity.service.impls;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
@@ -18,6 +20,7 @@ import com.fashion.identity.dto.response.LoginResponse.LoginResponseUserData;
 import com.fashion.identity.dto.response.LoginResponse.UserInsideToken;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.exception.ServiceException;
+import com.fashion.identity.security.SecurityUtils;
 import com.fashion.identity.service.AuthenticateService;
 import com.fashion.identity.service.UserService;
 
@@ -33,6 +36,7 @@ import lombok.extern.slf4j.Slf4j;
 public class AuthenticateServiceImpl implements AuthenticateService{
     final MacAlgorithm JWT_ALGORITHM = MacAlgorithm.HS512;
     final JwtEncoder jwtEncoder;
+    final SecurityUtils securityUtils;
 
     @Value("${jwt.access-token-in-seconds}")
     Long accessTokenExpiration;
@@ -48,7 +52,7 @@ public class AuthenticateServiceImpl implements AuthenticateService{
         } catch(ServiceException e){
             throw e;
         } catch (Exception e) {
-            log.error("INTERNAL-SERVICE: createAccessToken(): {}", e.getMessage());
+            log.error("IDENTITY-SERVICE: createAccessToken(): {}", e.getMessage());
             throw e;
         }
     }
@@ -61,14 +65,19 @@ public class AuthenticateServiceImpl implements AuthenticateService{
         } catch(ServiceException e){
             throw e;
         } catch (Exception e) {
-            log.error("INTERNAL-SERVICE: createRefreshToken(): {}", e.getMessage());
+            log.error("IDENTITY-SERVICE: createRefreshToken(): {}", e.getMessage());
             throw e;
         }
     }
 
     @Override
     public boolean verifyAccessToken(String token){
-        return true;
+        try {
+            Jwt jwt = securityUtils.getUserFromJWTToken(token);
+            return Objects.nonNull(jwt);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private String generateToken(String userName, Long expiration,LoginResponseUserData responseUserData){
@@ -88,7 +97,7 @@ public class AuthenticateServiceImpl implements AuthenticateService{
             JwsHeader jwsHeader = JwsHeader.with(JWT_ALGORITHM).build();
             return this.jwtEncoder.encode(JwtEncoderParameters.from(jwsHeader, builder.build())).getTokenValue();
         } catch (Exception e) {
-            log.error("[generateToken] Error: {}", e.getMessage(), e);
+            log.error("IDENTITY-SERVICE: generateToken Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }

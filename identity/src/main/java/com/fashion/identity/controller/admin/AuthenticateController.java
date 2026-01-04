@@ -114,6 +114,6 @@ public class AuthenticateController {
     ResponseEntity<VerifyTokenResponse> verifyAccessToken(@RequestBody VerifyTokenRequest request)
     {
         boolean result = authenticateService.verifyAccessToken(request.getToken());
-        return ResponseEntity.ok(VerifyTokenResponse.builder().isValid(true).build());
+        return ResponseEntity.ok(VerifyTokenResponse.builder().isValid(result).build());
     }
 }
