@@ -1,6 +1,7 @@
 package com.fashion.identity.entity;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -75,6 +76,15 @@ public class User extends AbstractAuditingEntity{
 
     @Column(name = "refresh_token", columnDefinition = "MEDIUMTEXT")
     String refreshToken;
+
+    @Column(name = "email_verified", nullable = false)
+    boolean emailVerified = false;
+
+    @Column(name = "verification_code", length = 64)
+    String verificationCode;
+
+    @Column(name = "verification_expiration")
+    LocalDateTime verificationExpiration;
 
     @OneToMany( mappedBy = "user", fetch = FetchType.LAZY,cascade = CascadeType.ALL,orphanRemoval = true)
     @JsonManagedReference

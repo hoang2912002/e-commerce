@@ -8,5 +8,6 @@ import com.fashion.identity.entity.User;
 public interface UserService {
     User handleGetUserByUserName(String userName);
     User updateRefreshTokenUserByUserName(String userName, String refreshToken);
+    UserResponse createUser(User user);
     List<UserResponse> getAllUsers();
 }

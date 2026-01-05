@@ -82,32 +82,12 @@ public class GlobalException {
                 .code(HttpStatus.BAD_REQUEST.value())
                 .message(message)
                 .language(languageHeader)
-                .errorCode(EnumError.IDENTITY_VALIDATION_ERROR.getCode())
+                .errorCode(EnumError.RESOURCE_VALIDATION_ERROR.getCode())
                 .errors(Map.of(fieldName, message))
                 .timestamp(LocalDateTime.now())
                 .path(path)
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
-    }
-
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ApiResponse<Object>> handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
-        String languageHeader = request.getHeader(HttpHeaders.ACCEPT_LANGUAGE);
-        Locale locale = request.getLocale();
-        LocaleContext localeContext = () -> locale;
-        String message = messageUtil.getMessage("auth.token.invalid.login.again", localeContext);
-        ApiResponse<Object> res = ApiResponse.builder()
-                .success(false)
-                .code(HttpStatus.UNAUTHORIZED.value())
-                .errorCode(EnumError.IDENTITY_AUTHENTICATION_FAILED.getCode())
-                .message(message)
-                .path(request.getRequestURI())
-                .errors(Map.of("accessToken", message))
-                .timestamp(LocalDateTime.now())
-                .language(languageHeader)
-                .build();
-                
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(res);
     }
 }

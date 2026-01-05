@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 public class UserServiceImpl implements UserService{
     UserRepository userRepository;
     UserMapper userMapper;
+    PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional(readOnly = true)
@@ -81,4 +83,27 @@ public class UserServiceImpl implements UserService{
         }
     }
     
+
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public UserResponse createUser(User user){
+        try {
+            log.info("IDENTITY-SERVICE: create new user");
+            Optional<User> existedUser = this.userRepository.findByUserNameOrEmailOrPhoneNumber(user.getUserName(), user.getEmail(), user.getPhoneNumber());
+            if(existedUser.isPresent()){
+                if(existedUser.get().getPhoneNumber().equals(user.getPhoneNumber())){
+                    throw new ServiceException(EnumError.IDENTITY_USER_DATA_EXISTED_PHONE_NUMBER,"user.exist.phoneNumber", Map.of("email", user.getEmail()));
+                }
+                else if(existedUser.get().getEmail().equals(user.getEmail())){
+                    throw new ServiceException(EnumError.IDENTITY_USER_DATA_EXISTED_EMAIL,"user.exist.email", Map.of("email", user.getPhoneNumber()));
+                }
+            }
+            return null;
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("IDENTITY-SERVICE: createUser: {}", e.getMessage());
+            throw e;
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.fashion.identity.dto.response;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.fashion.identity.common.enums.GenderEnum;
@@ -28,6 +29,9 @@ public class UserResponse {
     String phoneNumber;
     String userName;
     String avatar;
+    boolean emailVerified;
+    String verificationCode;
+    LocalDateTime verificationExpiration; 
     RoleResponse role;
     String createdBy;
     Instant createdAt;

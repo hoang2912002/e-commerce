@@ -7,6 +7,7 @@ import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
+import com.fashion.identity.dto.request.UserRequest;
 import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.dto.response.UserResponse.InnerUserResponse;
 import com.fashion.identity.entity.User;
@@ -36,4 +37,7 @@ public interface UserMapper extends EntityMapper<UserResponse, User, InnerUserRe
     @Named("toInnerEntity")
     InnerUserResponse toInnerEntity(User entity);
     List<InnerUserResponse> toInnerEntity(List<User> entity);
+
+    @Named("toValidated")
+    User toValidated(UserRequest dto);
 }

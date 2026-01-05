@@ -37,9 +37,9 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz ->
                 // prettier-ignore
                 authz
-                    // .requestMatchers(whiteLists).permitAll()
-                    // .anyRequest().authenticated()
-                    .anyRequest().permitAll()
+                    .requestMatchers(whiteLists).permitAll()
+                    .anyRequest().authenticated()
+                    // .anyRequest().permitAll()
             )
             // .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // .exceptionHandling(exceptions ->
@@ -47,11 +47,11 @@ public class SecurityConfig {
             //         .authenticationEntryPoint(authenticationEntryPoint)
             //         .accessDeniedHandler(new BearerTokenAccessDeniedHandler())
             // )
-            .formLogin(f -> f.disable());
-            // .oauth2ResourceServer(oauth2 -> oauth2
-            //     .jwt(Customizer.withDefaults())
-            //     .authenticationEntryPoint(authenticationEntryPoint)
-            // );
+            .formLogin(f -> f.disable())
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(Customizer.withDefaults())
+                .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
+            );
         return http.build();
     }
 }

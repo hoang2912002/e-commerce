@@ -42,9 +42,6 @@ public class PermissionRegisterConsumer {
             log.info("[onMessageHandler] Start consuming message ...");
             log.info("[onMessageHandler] Received message payload: {}", message);
 
-            // KafkaOrderResponse response = new ObjectMapper().readValue(message,
-            // KafkaOrderResponse.class);
-
             ObjectMapper objectMapper = new ObjectMapper();
 
             KafkaEvent<List<KafkaPermissionRegisterResponse>> event = objectMapper.readValue(

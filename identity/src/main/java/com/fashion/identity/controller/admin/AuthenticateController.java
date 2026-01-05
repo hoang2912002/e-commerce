@@ -6,13 +6,16 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fashion.identity.common.annotation.ApiMessageResponse;
 import com.fashion.identity.common.response.ApiResponse;
 import com.fashion.identity.dto.request.LoginRequest;
+import com.fashion.identity.dto.request.UserRequest;
 import com.fashion.identity.dto.request.VerifyTokenRequest;
 import com.fashion.identity.dto.response.LoginResponse;
+import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.dto.response.VerifyTokenResponse;
 import com.fashion.identity.dto.response.LoginResponse.LoginResponseUserData;
 import com.fashion.identity.entity.Role;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.mapper.RoleMapper;
+import com.fashion.identity.mapper.UserMapper;
 import com.fashion.identity.service.AuthenticateService;
 import com.fashion.identity.service.UserService;
 import com.nimbusds.jose.JOSEException;
@@ -28,6 +31,7 @@ import java.util.Objects;
 import org.apache.kafka.common.protocol.types.Field.Str;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -48,6 +52,7 @@ public class AuthenticateController {
     final UserService userService;
     final AuthenticationManagerBuilder authenticationManagerBuilder;
     final RoleMapper roleMapper;
+    final UserMapper userMapper;
 
     @Value("${cookie-settings.path}")
     private String cookiePath;
@@ -116,4 +121,10 @@ public class AuthenticateController {
         boolean result = authenticateService.verifyAccessToken(request.getToken());
         return ResponseEntity.ok(VerifyTokenResponse.builder().isValid(result).build());
     }
+
+    @PostMapping("/register")
+    public ResponseEntity<UserResponse> register(@RequestBody @Valid UserRequest entity) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(this.userService.createUser(this.userMapper.toValidated(entity)));
+    }
+    
 }

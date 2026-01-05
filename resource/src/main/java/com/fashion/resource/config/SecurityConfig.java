@@ -29,7 +29,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         String[] whiteLists = {
-            "/**",
+            // "/**",
         };
         http
             .cors(Customizer.withDefaults())
@@ -37,9 +37,13 @@ public class SecurityConfig {
             .authorizeHttpRequests(authz ->
                 // prettier-ignore
                 authz
-                    // .requestMatchers(whiteLists).permitAll()
-                    // .anyRequest().authenticated()
-                    .anyRequest().permitAll()
+                    .requestMatchers(whiteLists).permitAll()
+                    .anyRequest().authenticated()
+                    // .anyRequest().permitAll()
+            )
+            .oauth2ResourceServer(oauth2 -> oauth2
+                .jwt(Customizer.withDefaults())
+                .authenticationEntryPoint(new BearerTokenAuthenticationEntryPoint())
             )
             .formLogin(f -> f.disable());
         return http.build();

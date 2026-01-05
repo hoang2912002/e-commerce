@@ -28,6 +28,9 @@ public class File extends AbstractAuditingEntity<String>{
         return id;
     }
 
+    @Field("name")
+    String name;
+
     @Field("content_type")
     String contentType;
 

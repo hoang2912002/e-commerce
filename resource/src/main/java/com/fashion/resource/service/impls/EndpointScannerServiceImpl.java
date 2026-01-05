@@ -10,8 +10,8 @@ import org.springframework.web.servlet.mvc.method.RequestMappingInfo;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import com.fashion.resource.common.util.SplitCamelCase;
+import com.fashion.resource.dto.response.PermissionResponse.InnerPermissionResponse;
 import com.fashion.resource.dto.response.kafka.KafkaPermissionRegisterResponse;
-import com.fashion.resource.dto.response.system.PermissionResponse.InnerPermissionResponse;
 import com.fashion.resource.service.EndpointScannerService;
 
 import lombok.AccessLevel;

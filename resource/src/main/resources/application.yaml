@@ -51,3 +51,7 @@ jwt:
   base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
   access-token-in-seconds: 86400
   refresh-token-in-seconds: 2592000
+app:
+  file:
+    storage-dir: D:\java-string-boot\microservice-clothing-shop\image
+    download-prefix: http://localhost:8000/api/v1/resource/files/download/

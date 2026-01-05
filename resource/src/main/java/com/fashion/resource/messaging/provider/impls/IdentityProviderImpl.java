@@ -8,10 +8,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import com.fashion.resource.common.enums.EventType;
+import com.fashion.resource.dto.response.PermissionResponse.InnerPermissionResponse;
 import com.fashion.resource.dto.response.kafka.EventMetaData;
 import com.fashion.resource.dto.response.kafka.KafkaEvent;
 import com.fashion.resource.dto.response.kafka.KafkaPermissionRegisterResponse;
-import com.fashion.resource.dto.response.system.PermissionResponse.InnerPermissionResponse;
 import com.fashion.resource.messaging.provider.IdentityProvider;
 import com.fashion.resource.properties.KafkaTopicProperties;
 import com.fashion.resource.service.EndpointScannerService;

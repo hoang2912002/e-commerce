@@ -1,7 +1,11 @@
-package com.fashion.resource.dto.response.system;
+package com.fashion.identity.dto.request;
 
 import java.time.Instant;
+import java.util.List;
 
+import com.fashion.identity.dto.request.PermissionRequest.InnerPermissionRequest;
+
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -14,29 +18,23 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PermissionResponse {
+public class RoleRequest {
     Long id;
     String name;
-    String apiPath;
-    String method;
-    String module;
-    String service;
+    String slug;
     String createdBy;
-    Instant createdAt;
     String updatedBy;
+    Instant createdAt;
     Instant updatedAt;
+    List<InnerPermissionRequest> permissions;
 
     @NoArgsConstructor
     @AllArgsConstructor
     @Data
     @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class InnerPermissionResponse {
+    public static class InnerRoleRequest {
+        @NotNull(message = "role.id.notNull")
         Long id;
-        String name;
-        String apiPath;
-        String method;
-        String module;
-        String service;
     }
 }

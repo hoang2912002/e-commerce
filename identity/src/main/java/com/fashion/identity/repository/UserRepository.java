@@ -10,4 +10,5 @@ import com.fashion.identity.entity.User;
 
 public interface UserRepository extends JpaRepository<User, UUID>,JpaSpecificationExecutor<User>{
     Optional<User> findByUserName(String userName);
+    Optional<User> findByUserNameOrEmailOrPhoneNumber(String userName, String email, String phoneNumber);
 }
