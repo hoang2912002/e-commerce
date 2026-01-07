@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.fashion.identity.dto.request.PermissionRequest.InnerPermissionRequest;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -19,7 +20,12 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoleRequest {
+    public interface Create {}
+    public interface Update {}
+    @NotNull(message = "role.id.notNull", groups = Update.class)
     Long id;
+
+    @NotBlank(message = "role.name.notNull", groups = {Create.class, Update.class})
     String name;
     String slug;
     String createdBy;

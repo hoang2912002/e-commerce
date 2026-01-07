@@ -9,4 +9,5 @@ import com.fashion.identity.entity.Permission;
 
 public interface PermissionRepository extends JpaRepository<Permission, Long>, JpaSpecificationExecutor<Permission>{
     List<Permission> findAllByService(String service);
+    List<Permission> findAllByIdIn(List<Long> id);
 }

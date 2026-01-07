@@ -39,7 +39,7 @@ public class Permission extends AbstractAuditingEntity {
     @Column(name = "name", length = 100)
     String name;
 
-    @Column(name = "api_path", length = 100, unique = true)
+    @Column(name = "api_path", length = 100)
     String apiPath;
 
     @Column(name = "method", length = 10)
@@ -50,6 +50,9 @@ public class Permission extends AbstractAuditingEntity {
     
     @Column(name = "service", length = 100)
     String service;
+
+    @Column(name = "activated")
+    Boolean activated;
 
     @ManyToMany(fetch = FetchType.LAZY, mappedBy = "permissions")
     @JsonIgnore

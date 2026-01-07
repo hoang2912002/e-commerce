@@ -21,6 +21,7 @@ public class RoleResponse {
     Long id;
     String name;
     String slug;
+    boolean activated;
     String createdBy;
     String updatedBy;
     Instant createdAt;

@@ -6,6 +6,7 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
+import com.fashion.identity.dto.request.RoleRequest;
 import com.fashion.identity.dto.response.RoleResponse;
 import com.fashion.identity.dto.response.RoleResponse.InnerRoleResponse;
 import com.fashion.identity.entity.Role;
@@ -29,4 +30,6 @@ public interface RoleMapper extends EntityMapper<RoleResponse, Role, InnerRoleRe
     InnerRoleResponse toInnerEntity(Role entity);
     List<InnerRoleResponse> toInnerEntity(List<Role> entity);
 
+    @Named("toValidated")
+    Role toValidated(RoleRequest dto);
 }

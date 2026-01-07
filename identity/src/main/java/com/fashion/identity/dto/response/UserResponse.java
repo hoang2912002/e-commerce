@@ -3,9 +3,11 @@ package com.fashion.identity.dto.response;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import com.fashion.identity.common.enums.GenderEnum;
+import com.fashion.identity.dto.response.AddressResponse.InnerAddressResponse;
 import com.fashion.identity.dto.response.RoleResponse.InnerRoleResponse;
 
 import lombok.AccessLevel;
@@ -32,11 +34,13 @@ public class UserResponse {
     boolean emailVerified;
     String verificationCode;
     LocalDateTime verificationExpiration; 
+    boolean activated;
     RoleResponse role;
     String createdBy;
     Instant createdAt;
     String updatedBy;
     Instant updatedAt;
+    List<InnerAddressResponse> addresses;
 
     @NoArgsConstructor
     @AllArgsConstructor

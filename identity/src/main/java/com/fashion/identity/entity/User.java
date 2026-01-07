@@ -86,6 +86,9 @@ public class User extends AbstractAuditingEntity{
     @Column(name = "verification_expiration")
     LocalDateTime verificationExpiration;
 
+    @Column(name = "activated")
+    Boolean activated;
+
     @OneToMany( mappedBy = "user", fetch = FetchType.LAZY,cascade = CascadeType.ALL,orphanRemoval = true)
     @JsonManagedReference
     List<Address> addresses = new ArrayList<>();

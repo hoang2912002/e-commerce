@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,6 +20,9 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AddressRequest {
+    public interface Create {}
+    public interface Update {}
+
     UUID id;
     String address;
     String province;
@@ -36,18 +40,19 @@ public class AddressRequest {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class InnerAddressRequest{
+        // @NotNull(message = "", groups = Update.class)
         UUID id;
 
-        @NotBlank(message = "address.address.notNull")
+        @NotBlank(message = "address.address.notNull", groups = {Create.class, Update.class})
         String address;
 
-        @NotBlank(message = "address.province.notNull")
+        @NotBlank(message = "address.province.notNull", groups = {Create.class, Update.class})
         String province;
 
-        @NotBlank(message = "address.district.notNull")
+        @NotBlank(message = "address.district.notNull", groups = {Create.class, Update.class})
         String district;
 
-        @NotBlank(message = "address.ward.notNull")
+        @NotBlank(message = "address.ward.notNull", groups = {Create.class, Update.class})
         String ward;
     }
 }

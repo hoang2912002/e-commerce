@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import javax.swing.text.StyledEditorKit.BoldAction;
 
+import jakarta.persistence.Column;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,6 +30,7 @@ public class AddressResponse {
     String createdBy;
     Instant createdAt;
     String updatedBy;
+    boolean activated;
     Instant updatedAt;
 
     @NoArgsConstructor

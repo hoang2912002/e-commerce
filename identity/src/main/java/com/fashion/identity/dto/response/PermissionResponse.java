@@ -21,6 +21,7 @@ public class PermissionResponse {
     String method;
     String module;
     String service;
+    boolean activated;
     String createdBy;
     Instant createdAt;
     String updatedBy;

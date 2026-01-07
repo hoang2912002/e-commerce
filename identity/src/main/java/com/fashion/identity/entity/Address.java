@@ -53,6 +53,9 @@ public class Address extends AbstractAuditingEntity{
 
     @Column(name = "ward", length = 100)
     String ward;
+
+    @Column(name = "activated")
+    Boolean activated;
     
     @ManyToOne()
     @JoinColumn(name = "user_id", nullable = true)

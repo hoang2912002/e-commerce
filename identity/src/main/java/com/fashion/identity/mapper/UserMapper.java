@@ -1,12 +1,14 @@
 package com.fashion.identity.mapper;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
+import com.fashion.identity.common.util.ConvertUuidUtil;
 import com.fashion.identity.dto.request.UserRequest;
 import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.dto.response.UserResponse.InnerUserResponse;
@@ -39,5 +41,13 @@ public interface UserMapper extends EntityMapper<UserResponse, User, InnerUserRe
     List<InnerUserResponse> toInnerEntity(List<User> entity);
 
     @Named("toValidated")
+    @Mapping(target = "id", source = "id", qualifiedByName = "userToUuid")
     User toValidated(UserRequest dto);
+
+    // Format id thành type UUID
+    @Named("userToUuid")
+    default UUID toUuid(Object id) {
+        if (id == null) return null;
+        return ConvertUuidUtil.toUuid(id);
+    }
 }

@@ -87,11 +87,11 @@ public class SetUpDataLoader implements ApplicationListener<ContextRefreshedEven
         });
         List<Permission> permissionsDB = this.permissionRepository.findAll();
         final Set<String> existEndpoint = permissionsDB.stream()
-            .map(p -> p.getApiPath() + "::" + p.getModule())
+            .map(p -> p.getApiPath() + "::" + p.getModule() + "::" + p.getMethod())
             .collect(Collectors.toSet());
 
         final List<Permission> insertPermissions = listPermission.stream()
-            .filter(p -> !existEndpoint.contains(p.getApiPath() + "::" + p.getModule()))
+            .filter(p -> !existEndpoint.contains(p.getApiPath() + "::" + p.getModule() + "::" + p.getMethod()))
             .toList();
         
         if(!insertPermissions.isEmpty()){

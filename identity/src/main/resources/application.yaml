@@ -58,3 +58,9 @@ cookie-settings:
   domain: localhost
 admin:
   gmail: hoang2912002@gmail.com
+
+role:
+  slug:
+    admin: admin
+    user: user
+    seller: seller

@@ -39,6 +39,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
@@ -123,7 +124,7 @@ public class AuthenticateController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<UserResponse> register(@RequestBody @Valid UserRequest entity) {
+    public ResponseEntity<UserResponse> register(@RequestBody @Validated(UserRequest.Create.class) UserRequest entity) {
         return ResponseEntity.status(HttpStatus.CREATED).body(this.userService.createUser(this.userMapper.toValidated(entity)));
     }
     

@@ -3,6 +3,7 @@ package com.fashion.identity.entity;
 import java.util.List;
 import java.util.UUID;
 
+import com.fashion.identity.common.annotation.Searchable;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
@@ -41,11 +42,16 @@ public class Role extends AbstractAuditingEntity{
         return this.id;
     }
 
+    @Searchable
     @Column(name = "name")
     private String name;
 
+    @Searchable
     @Column(name = "slug")
     private String slug;
+
+    @Column(name = "activated")
+    Boolean activated;
 
     @OneToMany( mappedBy = "role", fetch = FetchType.LAZY)
     @JsonIgnore
