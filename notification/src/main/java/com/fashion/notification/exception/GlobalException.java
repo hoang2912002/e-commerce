@@ -1,6 +1,7 @@
-package com.fashion.identity.exception;
+package com.fashion.notification.exception;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -22,9 +23,9 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import com.fashion.identity.common.enums.EnumError;
-import com.fashion.identity.common.response.ApiResponse;
-import com.fashion.identity.common.util.MessageUtil;
+import com.fashion.notification.common.enums.EnumError;
+import com.fashion.notification.common.response.ApiResponse;
+import com.fashion.notification.common.util.MessageUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
@@ -40,50 +41,48 @@ public class GlobalException {
     @Value("${spring.application.language-default}")
     String defaultLanguage;
 
-    // Xử lý lỗi Security (UsernameNotFound, BadCredentials)
-    @ExceptionHandler({UsernameNotFoundException.class, BadCredentialsException.class})
-    public ResponseEntity<ApiResponse<Object>> handleSecurityException(Exception ex, HttpServletRequest request) {
-        String languageHeader = request.getHeader(HttpHeaders.ACCEPT_LANGUAGE);
-        Locale locale = request.getLocale(); // ⭐ RECOMMENDED
-        LocaleContext localeContext = () -> locale;
-
-        String message = messageUtil.getMessage("auth.login.fail", localeContext);
-        String messageFieldAccount = messageUtil.getMessage("auth.login.userName.invalid", localeContext);
-        String messageFieldPassword = messageUtil.getMessage("auth.login.password.invalid", localeContext);
-        Map<String, Object> errors = Map.of("userName", messageFieldAccount, "password", messageFieldPassword);
-        ApiResponse<Object> res = ApiResponse.builder()
-                .success(false)
-                .code(HttpStatus.UNAUTHORIZED.value())
-                .errorCode(EnumError.IDENTITY_USER_ERR_NOT_FOUND_USERNAME_PASSWORD.getCode())
-                .message(message)
-                .path(request.getRequestURI())
-                .language(Objects.nonNull(languageHeader) ? languageHeader : defaultLanguage)
-                .timestamp(LocalDateTime.now())
-                .errors(errors)
-                .build();
-
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(res);
-    }
-
     // Xử lý lỗi Business exception
-    @ExceptionHandler(value = ServiceException.class)
-    public ResponseEntity<ApiResponse> handleServiceException(ServiceException ex, HttpServletRequest request) {
-
+    @ExceptionHandler(value = {
+        ServiceException.class,
+        KafkaException.class
+    })
+    public ResponseEntity<ApiResponse> handleServiceException(RuntimeException ex, HttpServletRequest request) {
+        EnumError enumError = null;
+        String errorCode = null;
+        Map<String, Object> errors = new HashMap<>();
+        Object args = new Object[]{};
+        
         String languageHeader = request.getHeader(HttpHeaders.ACCEPT_LANGUAGE);
-        Locale locale = request.getLocale(); // ⭐ RECOMMENDED
+        Locale locale = request.getLocale();
         LocaleContext localeContext = () -> locale;
         String path = request.getRequestURI();
+
+        if(ex instanceof ServiceException sEx){
+            enumError = sEx.getEnumError();
+            errorCode = sEx.getMessageCode();
+            args = sEx.getErrors() != null ? sEx.getErrors().values().toString() : new Object[]{};
+            errors = sEx.getErrors();
+        } else if(ex instanceof KafkaException kEx){
+            enumError = kEx.getEnumError();
+            errorCode = kEx.getMessageCode();
+            args = kEx.getErrors() != null ? kEx.getErrors().values().toString() : new Object[]{};
+            errors = kEx.getErrors();
+        } else {
+            enumError = EnumError.NOTIFICATION_INTERNAL_ERROR_CALL_API;
+            errorCode = "server.error.internal";
+            errors = null;
+        }
+
+        String message = messageUtil.getMessage(errorCode, localeContext, args);
         // Lấy EnumError từ exception
-        EnumError enumError = ex.getEnumError();
-        Object args = ex.getErrors() != null ? ex.getErrors().values().toString() : new Object[]{};
         ApiResponse<Object> res = ApiResponse.builder()
             .success(false)
             .code(enumError.getHttpStatus().value())
-            .message(messageUtil.getMessage(ex.getMessageCode(), localeContext, args))
+            .message(message)
             .language(Objects.nonNull(languageHeader) ? languageHeader : defaultLanguage)
-            .errorCode(ex.getMessageCode())
+            .errorCode(errorCode)
             .timestamp(LocalDateTime.now())
-            .errors(ex.getErrors())
+            .errors(errors)
             .path(path)
             .build();
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(res);
@@ -112,32 +111,12 @@ public class GlobalException {
                 .code(HttpStatus.BAD_REQUEST.value())
                 .message(message)
                 .language(Objects.nonNull(languageHeader) ? languageHeader : defaultLanguage)
-                .errorCode(EnumError.IDENTITY_VALIDATION_ERROR.getCode())
+                .errorCode(EnumError.NOTIFICATION_INTERNAL_ERROR_CALL_API.getCode())
                 .errors(Map.of(fieldName, message))
                 .timestamp(LocalDateTime.now())
                 .path(path)
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
-    }
-
-    @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<ApiResponse<Object>> handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
-        String languageHeader = request.getHeader(HttpHeaders.ACCEPT_LANGUAGE);
-        Locale locale = request.getLocale();
-        LocaleContext localeContext = () -> locale;
-        String message = messageUtil.getMessage("auth.token.invalid.login.again", localeContext);
-        ApiResponse<Object> res = ApiResponse.builder()
-                .success(false)
-                .code(HttpStatus.UNAUTHORIZED.value())
-                .errorCode(EnumError.IDENTITY_AUTHENTICATION_FAILED.getCode())
-                .message(message)
-                .path(request.getRequestURI())
-                .errors(Map.of("accessToken", message))
-                .timestamp(LocalDateTime.now())
-                .language(Objects.nonNull(languageHeader) ? languageHeader : defaultLanguage)
-                .build();
-                
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(res);
     }
 }

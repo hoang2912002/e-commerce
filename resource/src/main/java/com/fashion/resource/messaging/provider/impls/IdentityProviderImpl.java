@@ -13,7 +13,7 @@ import com.fashion.resource.dto.response.kafka.EventMetaData;
 import com.fashion.resource.dto.response.kafka.KafkaEvent;
 import com.fashion.resource.dto.response.kafka.KafkaPermissionRegisterResponse;
 import com.fashion.resource.messaging.provider.IdentityProvider;
-import com.fashion.resource.properties.KafkaTopicProperties;
+import com.fashion.resource.properties.KafkaTopicIdentityProperties;
 import com.fashion.resource.service.EndpointScannerService;
 import com.fashion.resource.service.KafkaService;
 
@@ -27,7 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class IdentityProviderImpl implements IdentityProvider{
-    KafkaTopicProperties kafkaTopicProperties;
+    KafkaTopicIdentityProperties kafkaTopicProperties;
     KafkaService kafkaService;
     EndpointScannerService scanner;
 

@@ -1,4 +1,4 @@
-package com.fashion.resource.properties;
+package com.fashion.notification.properties;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +11,6 @@ import lombok.experimental.FieldDefaults;
 @Data
 @ConfigurationProperties("spring.kafka.topic.identity")
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class KafkaTopicProperties {
+public class KafkaTopicIdentityProperties {
     String permissionRegister;
 }

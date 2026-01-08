@@ -1,22 +1,17 @@
 server:
-  port: 8080
+  port: 8086
   servlet:
-    context-path: /identity
+    context-path: /notification
+
 spring:
   application:
-    name: identity-service
+    name: notification-service
     language-default: en
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-  datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/e_identity_service
-    username: root
-    password: 123456
-    driver-class-name: com.mysql.cj.jdbc.Driver
+  mongodb:
+    uri: mongodb://root:root@localhost:27017/notification-service?authSource=admin
   kafka:
     bootstrap-servers: localhost:9094
+
     # config consumer
     consumer:
       auto-offset-reset: earliest
@@ -24,10 +19,15 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer #value
       properties:
         spring.json.trusted.packages: "*"
+
     # config producer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+
+    # kafka group id
     group:
       permission: identity-permission-sync
       identity: identity-group
@@ -42,26 +42,9 @@ spring:
     # kafka topic (<domain>.<entity>.<event-type>)
     topic:
       identity:
-        # Lý do format permission-register ở consumer identity là chung cho nhiều service khác
         permission-register: com.identity.permission_register
 
-# logging:
-#   level:
-#     org.springframework.kafka: DEBUG
 jwt:
   base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
   access-token-in-seconds: 86400
   refresh-token-in-seconds: 2592000
-
-cookie-settings:
-  path: /
-  sameSite: None
-  domain: localhost
-admin:
-  gmail: hoang2912002@gmail.com
-
-role:
-  slug:
-    admin: admin
-    user: user
-    seller: seller

@@ -26,7 +26,7 @@
             "projectName": "api-gateway",
             "args": "",
             "envFile": "${workspaceFolder}/.env",
-            // "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=1212 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=api-gateway"
+            "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=14113 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=api-gateway"
         },
         {
             "type": "java",
@@ -35,6 +35,17 @@
             "cwd": "${workspaceFolder}",
             "mainClass": "com.fashion.resource.ResourceApplication",
             "projectName": "resource",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env",
+            "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=14130 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=resource"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-NotificationApplication<notification>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.fashion.notification.NotificationApplication",
+            "projectName": "notification",
             "args": "",
             "envFile": "${workspaceFolder}/.env"
         }
