@@ -12,8 +12,8 @@ import org.springframework.data.domain.Sort;
 import com.fashion.identity.dto.response.PaginationResponse;
 
 public class PageableUtils {
-    public static <E, D> PaginationResponse buildPaginationResponse(PageRequest pageRequest, Page<E> data, List<D> listData){
-        PaginationResponse rs = new PaginationResponse();
+    public static <E, D> PaginationResponse<List<D>> buildPaginationResponse(PageRequest pageRequest, Page<E> data, List<D> listData){
+        PaginationResponse<List<D>> rs = new PaginationResponse<List<D>>();
         PaginationResponse.InnerMetaPaginationResponse meta = new PaginationResponse.InnerMetaPaginationResponse(1,10,1,0L);
         
         if (data == null) {

@@ -5,6 +5,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.identity.common.annotation.ApiMessageResponse;
 import com.fashion.identity.dto.request.UserRequest;
+import com.fashion.identity.dto.request.search.user.UserSearchRequest;
+import com.fashion.identity.dto.response.PaginationResponse;
 import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.mapper.UserMapper;
@@ -23,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -40,8 +43,10 @@ public class UserController {
 
     @GetMapping("")
     @ApiMessageResponse("user.success.get.all")
-    public ResponseEntity<List<UserResponse>> getAllUsers() {
-        return ResponseEntity.ok(this.userService.getAllUsers());
+    public ResponseEntity<PaginationResponse<List<UserResponse>>> getAllUsers(
+        @ModelAttribute UserSearchRequest request
+    ) {
+        return ResponseEntity.ok(this.userService.getAllUsers(request));
     }
 
 

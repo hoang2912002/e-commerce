@@ -80,7 +80,7 @@ public class SetUpDataLoader implements ApplicationListener<ContextRefreshedEven
                     .method(method)
                     .module(module)
                     .name(readableName)
-                    .service("IDENTITY-SERVICE")
+                    .service("identity-service")
                     .build()
                 );
             }

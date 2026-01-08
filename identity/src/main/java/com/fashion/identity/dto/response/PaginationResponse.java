@@ -14,9 +14,9 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PaginationResponse {
+public class PaginationResponse<T> {
     InnerMetaPaginationResponse meta;
-    Object data;
+    T data;
 
     @Data
     @NoArgsConstructor

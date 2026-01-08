@@ -23,7 +23,7 @@ public interface EntityMapper<D, E, I> {
     List<D> toDto (List<E> e);
     List<I> toInnerEntity (List<E> e);
     
-    @Named("partialUpdate")
+    @Named("toUpdate")
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    void partialUpdate(@MappingTarget E entity, D dto);
+    void toUpdate(@MappingTarget E entity, D dto);
 }

@@ -145,7 +145,7 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     @Transactional(readOnly=true)
-    public PaginationResponse getAllRole(RoleSearchRequest request) {
+    public PaginationResponse<List<RoleResponse>> getAllRole(RoleSearchRequest request) {
         try {
             // handle get all
             RoleSearchOption option = request.getSearchOption();

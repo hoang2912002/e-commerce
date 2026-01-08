@@ -2,6 +2,8 @@ package com.fashion.identity.service;
 
 import java.util.List;
 
+import com.fashion.identity.dto.request.search.user.UserSearchRequest;
+import com.fashion.identity.dto.response.PaginationResponse;
 import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.entity.User;
 
@@ -13,6 +15,6 @@ public interface UserService {
     UserResponse createUser(User user);
     UserResponse updateUser(User user);
     UserResponse getUserById(String id);
-    List<UserResponse> getAllUsers();
+    PaginationResponse<List<UserResponse>> getAllUsers(UserSearchRequest request);
     void deleteUserById(String id);
 }

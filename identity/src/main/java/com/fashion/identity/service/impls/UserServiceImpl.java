@@ -6,13 +6,24 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.identity.common.enums.EnumError;
 import com.fashion.identity.common.util.ConvertUuidUtil;
+import com.fashion.identity.common.util.PageableUtils;
+import com.fashion.identity.common.util.SpecificationUtils;
+import com.fashion.identity.dto.request.search.user.UserSearchModel;
+import com.fashion.identity.dto.request.search.user.UserSearchOption;
+import com.fashion.identity.dto.request.search.user.UserSearchRequest;
 import com.fashion.identity.dto.response.AddressResponse;
+import com.fashion.identity.dto.response.PaginationResponse;
 import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.dto.response.AddressResponse.InnerAddressResponse;
 import com.fashion.identity.entity.Address;
@@ -103,9 +114,30 @@ public class UserServiceImpl implements UserService{
 
     @Override
     @Transactional(readOnly = true)
-    public List<UserResponse> getAllUsers() {
+    public PaginationResponse<List<UserResponse>> getAllUsers(UserSearchRequest request) {
         try {
-            return this.userRepository.findAll().stream().map(this.userMapper::toDtoNotRelationship).toList();
+            UserSearchModel searchModel = request.getSearchModel();
+            UserSearchOption searchOption = request.getSearchOption();
+
+            List<String> allowedField = List.of("createdAt");
+
+            PageRequest pageRequest = PageableUtils.buildPageRequest(
+                searchOption.getPage(), 
+                searchOption.getSize(), 
+                searchOption.getSort(), 
+                allowedField, 
+                "createdAt", 
+                Sort.Direction.DESC
+            );
+
+            List<String> fields = SpecificationUtils.getFieldsSearch(User.class);
+            Specification<User> spec = new SpecificationUtils<User>()
+                    .equal("activated", searchModel.getActivated())
+                    .likeAnyFieldIgnoreCase(searchModel.getQ(), fields)
+                    .build();
+            Page<User> users = this.userRepository.findAll(spec, pageRequest);
+            List<UserResponse> userResponses = userMapper.toDto(users.getContent());
+            return PageableUtils.<User, UserResponse>buildPaginationResponse(pageRequest, users, userResponses);
         } catch (Exception e) {
             log.error("INTERNAL-SERVICE: getAllUsers(): {}", e.getMessage());
             throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
@@ -136,6 +168,7 @@ public class UserServiceImpl implements UserService{
                 .userName(user.getUserName())
                 .dob(user.getDob())
                 .role(role)
+                .activated(true)
                 .build();
             final User savedUser = this.userRepository.save(userForCreate);
             // Save address
@@ -189,7 +222,7 @@ public class UserServiceImpl implements UserService{
             updateUser.setGender(user.getGender());
 
             updateUser.setFullName(user.getFullName());
-
+            updateUser.setActivated(true);
             Role role = Objects.nonNull(user.getRole()) && Objects.nonNull(user.getRole().getId()) ? 
                 this.roleRepository.findById(user.getRole().getId()).get() :
                 this.roleRepository.findBySlug(RoleServiceImpl.roleUser);

@@ -14,7 +14,7 @@ public interface RoleService {
 
     RoleResponse getRoleById(Long id);
 
-    PaginationResponse getAllRole(RoleSearchRequest request);
+    PaginationResponse<List<RoleResponse>> getAllRole(RoleSearchRequest request);
 
     void deleteRoleById(Long id);
 

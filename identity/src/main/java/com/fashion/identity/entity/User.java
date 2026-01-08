@@ -10,6 +10,7 @@ import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
+import com.fashion.identity.common.annotation.Searchable;
 import com.fashion.identity.common.enums.GenderEnum;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
@@ -52,15 +53,18 @@ public class User extends AbstractAuditingEntity{
         return this.id;
     }
 
+    @Searchable
     @Column(name = "full_name", nullable = false, length = 100)
     String fullName;
 
+    @Searchable
     @Column(name = "email", unique = true, length = 100)
     String email;
 
     @Column(name = "password", nullable = false)
     String password;
 
+    @Searchable
     @Column(name = "phone_number", nullable = false, length = 11)
     String phoneNumber;
 
@@ -71,6 +75,7 @@ public class User extends AbstractAuditingEntity{
     @Column(name = "dob")
     LocalDate dob;
 
+    @Searchable
     @Column(name = "user_name", unique = true, length = 100)
     String userName;
 

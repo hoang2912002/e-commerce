@@ -63,7 +63,7 @@ public class RoleController {
 
     @GetMapping("")
     @ApiMessageResponse("role.success.get.all")
-    public ResponseEntity<PaginationResponse> getAllRole(
+    public ResponseEntity<PaginationResponse<List<RoleResponse>>> getAllRole(
         @ModelAttribute RoleSearchRequest request
     ) {
         return ResponseEntity.status(HttpStatus.OK).body(this.roleService.getAllRole(request));

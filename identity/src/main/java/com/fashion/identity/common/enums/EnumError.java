@@ -25,7 +25,12 @@ public enum EnumError {
     // Role
     IDENTITY_ROLE_DATA_EXISTED_NAME("IDENTITY-ROLE-DATA-EXISTED-NAME","Role already exists with the given Name:",HttpStatus.CONFLICT),
     IDENTITY_ROLE_ERR_NOT_FOUND_ID("IDENTITY-ROLE-ERR-NOT-FOUND-ID","Not found role with id:",HttpStatus.BAD_REQUEST),
-    
+    //----------------Permission-------------------
+    IDENTITY_PERMISSION_DATA_EXISTED_APIPATH("IDENTITY-PERMISSION-DTE-APIPATH","Permission already exists with the given Api path:",HttpStatus.CONFLICT),
+    IDENTITY_PERMISSION_DATA_EXISTED_APIPATH_METHOD_SERVICE("IDENTITY-PERMISSION-DTE-APIPATH-METHOD-SERVICE","Permission already exists with the given Api path, Method, Service:",HttpStatus.CONFLICT),
+    IDENTITY_PERMISSION_ERR_NOT_FOUND_ID("IDENTITY-PERMISSION-ERR-NOT-FOUND-ID","Not found permission with id:",HttpStatus.BAD_REQUEST),
+    IDENTITY_PERMISSION_ACCESS_DENIED("IDENTITY-PERMISSION-ACCESS-DENIED","You do not have permission to access this resource.",HttpStatus.FORBIDDEN),
+
 
     // Server
     IDENTITY_INTERNAL_ERROR_CALL_API("IDENTITY-INTERNAL-ERROR-CALL-API", "Call Identity Service api error", HttpStatus.INTERNAL_SERVER_ERROR),

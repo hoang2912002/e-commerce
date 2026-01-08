@@ -2,6 +2,7 @@ package com.fashion.identity.entity;
 
 import java.util.List;
 
+import com.fashion.identity.common.annotation.Searchable;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
@@ -36,18 +37,22 @@ public class Permission extends AbstractAuditingEntity {
         return this.id;
     }
 
+    @Searchable
     @Column(name = "name", length = 100)
     String name;
 
     @Column(name = "api_path", length = 100)
     String apiPath;
 
+    @Searchable
     @Column(name = "method", length = 10)
     String method;
 
+    @Searchable
     @Column(name = "module", length = 100)
     String module;
     
+    @Searchable
     @Column(name = "service", length = 100)
     String service;
 
