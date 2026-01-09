@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" version="29.2.9" pages="8">
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" version="29.2.10" pages="8">
   <diagram name="Microservice tructure" id="tEZrFOf6YBsN8ZIEOh95">
     <mxGraphModel dx="3123" dy="1136" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2339" pageHeight="3300" math="0" shadow="0">
       <root>
@@ -256,7 +256,7 @@
     </mxGraphModel>
   </diagram>
   <diagram id="iZ1Ix70uDrPE93j7mcQW" name="Product service entity">
-    <mxGraphModel dx="4405" dy="1137" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2339" pageHeight="3300" math="0" shadow="0">
+    <mxGraphModel dx="3581" dy="1136" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2339" pageHeight="3300" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -596,7 +596,7 @@
           <mxGeometry height="30" width="180" y="210" as="geometry" />
         </mxCell>
         <mxCell id="3Wmt10evS7jCa_Q_X5uD-13" parent="1" style="swimlane;fontStyle=0;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;whiteSpace=wrap;html=1;" value="Approval histories" vertex="1">
-          <mxGeometry height="210" width="210" x="800" y="760" as="geometry" />
+          <mxGeometry height="180" width="210" x="800" y="760" as="geometry" />
         </mxCell>
         <mxCell id="3Wmt10evS7jCa_Q_X5uD-14" parent="3Wmt10evS7jCa_Q_X5uD-13" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" value="Int - id;" vertex="1">
           <mxGeometry height="30" width="210" y="30" as="geometry" />
@@ -610,11 +610,8 @@
         <mxCell id="3Wmt10evS7jCa_Q_X5uD-17" parent="3Wmt10evS7jCa_Q_X5uD-13" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" value="String - requestId (UUID);" vertex="1">
           <mxGeometry height="30" width="210" y="120" as="geometry" />
         </mxCell>
-        <mxCell id="3Wmt10evS7jCa_Q_X5uD-18" parent="3Wmt10evS7jCa_Q_X5uD-13" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" value="Date - endDate;" vertex="1">
-          <mxGeometry height="30" width="210" y="150" as="geometry" />
-        </mxCell>
         <mxCell id="3Wmt10evS7jCa_Q_X5uD-19" parent="3Wmt10evS7jCa_Q_X5uD-13" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=4;spacingRight=4;overflow=hidden;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;rotatable=0;whiteSpace=wrap;html=1;" value="String - approvalMasterId (UUID);" vertex="1">
-          <mxGeometry height="30" width="210" y="180" as="geometry" />
+          <mxGeometry height="30" width="210" y="150" as="geometry" />
         </mxCell>
         <mxCell id="EMLv-XGkGzFk-3yUMhcm-1" edge="1" parent="1" source="3Wmt10evS7jCa_Q_X5uD-2" style="edgeStyle=orthogonalEdgeStyle;fontSize=12;html=1;endArrow=ERoneToMany;rounded=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=-0.006;exitY=0.344;exitDx=0;exitDy=0;exitPerimeter=0;" target="3Wmt10evS7jCa_Q_X5uD-19" value="">
           <mxGeometry height="100" relative="1" width="100" as="geometry">

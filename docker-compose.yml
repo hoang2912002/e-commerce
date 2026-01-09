@@ -2,7 +2,11 @@ networks:
   my-internal-net:
     driver: bridge
 
+volumes:
+  postgres_data:
+
 services:
+  # --- THÊM KAFKA ---
   kafka:
     image: apache/kafka:3.7.0
     container_name: kafka-server
@@ -25,3 +29,33 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0 # Thời gian chờ khi có consumer mới thêm. Mặc định là 3000ms
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+  # --- THÊM POSTGRESQL ---
+  db:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    networks:
+      - my-internal-net
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456 # Thay đổi mật khẩu ở đây
+      # POSTGRES_DB: postgreSQL # Tên database khởi tạo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql # Thêm dòng này
+
+  # --- THÊM PGADMIN ---
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin-client
+    networks:
+      - my-internal-net
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com # Email để login pgAdmin
+      PGADMIN_DEFAULT_PASSWORD: root         # Password để login pgAdmin
+    depends_on:
+      - db
