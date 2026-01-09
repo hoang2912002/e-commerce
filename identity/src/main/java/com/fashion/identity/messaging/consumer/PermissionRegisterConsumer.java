@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 
 import com.fashion.identity.dto.response.kafka.EventMetaData;
 import com.fashion.identity.dto.response.kafka.KafkaEvent;
-import com.fashion.identity.dto.response.kafka.KafkaPermissionRegisterResponse;
+import com.fashion.identity.dto.response.kafka.PermissionRegisteredEvent;
 import com.fashion.identity.entity.Permission;
 import com.fashion.identity.entity.Role;
 import com.fashion.identity.repository.PermissionRepository;
@@ -44,14 +44,14 @@ public class PermissionRegisterConsumer {
 
             ObjectMapper objectMapper = new ObjectMapper();
 
-            KafkaEvent<List<KafkaPermissionRegisterResponse>> event = objectMapper.readValue(
+            KafkaEvent<List<PermissionRegisteredEvent>> event = objectMapper.readValue(
                     message,
-                    new TypeReference<KafkaEvent<List<KafkaPermissionRegisterResponse>>>() {
+                    new TypeReference<KafkaEvent<List<PermissionRegisteredEvent>>>() {
                     });
             // Lấy Metadata ở đây:
             EventMetaData metadata = event.getMetadata();
 
-            List<KafkaPermissionRegisterResponse> payload = event.getPayload();
+            List<PermissionRegisteredEvent> payload = event.getPayload();
 
             List<Permission> permissionsDB = this.permissionRepository.findAllByService(metadata.getSource());
 

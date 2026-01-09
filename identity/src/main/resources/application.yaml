@@ -22,12 +22,28 @@ spring:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer #key
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer #value
+      # key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      # value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
+        # delegate deserializer thực sự
+        # spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        # spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+
+         # vì producer tắt type header
+        # spring.json.use.type.headers: true
+
+        # default type để deserialize
+        # spring.json.value.default.type: com.fashion.identity.dto.response.kafka.KafkaEvent
+
+        # cho phép deserialize class custom
         spring.json.trusted.packages: "*"
+
     # config producer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
     group:
       permission: identity-permission-sync
       identity: identity-group
@@ -44,6 +60,8 @@ spring:
       identity:
         # Lý do format permission-register ở consumer identity là chung cho nhiều service khác
         permission-register: com.identity.permission_register
+        user-created: com.identity.user.created  # Gửi mail verify account khi tạo user
+        user-created-success: com.identity.user.created.success # Gửi mail thông báo đăng ký thành công
 
 # logging:
 #   level:

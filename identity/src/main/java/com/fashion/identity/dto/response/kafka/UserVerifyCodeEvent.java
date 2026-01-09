@@ -1,4 +1,7 @@
-package com.fashion.notification.dto.response.kafka;
+package com.fashion.identity.dto.response.kafka;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -12,11 +15,10 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class KafkaPermissionRegisterResponse {
-    Long id;
-    String name;
-    String apiPath;
-    String method;
-    String module;
-    String service;
+public class UserVerifyCodeEvent {
+    UUID id;
+    String fullName;
+    String email;
+    String verifyCode;
+    String verificationExpiration;
 }

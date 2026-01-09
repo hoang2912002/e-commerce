@@ -1,6 +1,7 @@
 package com.fashion.identity.config;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,7 @@ public class SetUpDataLoader implements ApplicationListener<ContextRefreshedEven
                     .module(module)
                     .name(readableName)
                     .service("identity-service")
+                    .activated(true)
                     .build()
                 );
             }
@@ -107,6 +109,7 @@ public class SetUpDataLoader implements ApplicationListener<ContextRefreshedEven
                     .name("Admin")
                     .slug("admin")
                     .permissions(new ArrayList<>(permissionsDB)) // 🔥 mutable
+                    .activated(true)
                     .build()
             );
         } else {
@@ -131,6 +134,10 @@ public class SetUpDataLoader implements ApplicationListener<ContextRefreshedEven
                 .userName(email)
                 .refreshToken(null)
                 .addresses(null)
+                .activated(true)
+                .emailVerified(true)
+                .verificationCode(null)
+                .verificationExpiration(LocalDateTime.now())
                 .role(roleDB)
                 .build()
             );
@@ -143,6 +150,4 @@ public class SetUpDataLoader implements ApplicationListener<ContextRefreshedEven
             System.out.println(">>> END INIT DATABASE");
         }
     }
-    
-
 }

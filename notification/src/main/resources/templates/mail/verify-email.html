@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Xác thực Email của bạn</title>
+</head>
+
+<body style="font-family: Arial, sans-serif; background-color: #f5f6fa; padding: 20px; margin: 0;">
+    <div class="container"
+        style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 8px; padding: 30px; border: 1px solid #e1e4e8;">
+
+        <div
+            style="font-size: 24px; font-weight: bold; color: #333; margin-bottom: 20px; border-bottom: 2px solid #2f80ed; padding-bottom: 10px;">
+            Xác Thực Email
+        </div>
+
+        <p style="font-size: 16px; color: #333;">
+            Xin chào <strong th:text="${fullName}" style="color: #2f80ed;">Khách hàng</strong>,
+        </p>
+
+        <p style="font-size: 14px; color: #555; line-height: 1.5;">
+            Bạn nhận được email này để xác thực tài khoản đăng ký với email: <br />
+            <strong th:text="${email}">example@gmail.com</strong>
+        </p>
+
+        <div style="background-color: #f0f7ff; padding: 20px; border-radius: 6px; margin: 25px 0; text-align: center;">
+            <p style="margin-top: 0; color: #555; font-size: 14px;">Mã xác thực của bạn là:</p>
+            <div style="font-size: 36px; font-weight: bold; letter-spacing: 6px; color: #2f80ed; margin: 10px 0;"
+                th:text="${verifyCode}">123456</div>
+            <p style="margin-bottom: 0; font-size: 12px; color: #888;">
+                Mã sẽ hết hạn vào lúc: <span th:text="${verificationExpiration}">20:30:00 08-01-2026</span>
+            </p>
+        </div>
+
+        <p style="font-size: 14px; color: #555;">
+            Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.
+        </p>
+
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999;">
+            <p>Mã định danh (User ID): <span th:text="${id}">UUID</span></p>
+            <p>© 2026 <strong>Fashion Shop</strong>. Bảo lưu mọi quyền.</p>
+        </div>
+    </div>
+</body>
+
+</html>

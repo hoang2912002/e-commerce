@@ -45,11 +45,16 @@ public class UserDetailService implements UserDetailsService{
             if(role instanceof Role &&
                 Objects.nonNull(role.getId())
             ){
-                roleName = role.getSlug().toLowerCase();
+                roleName = role.getSlug().toUpperCase();
             }
+            boolean enabled = userOptional.get().isEmailVerified();
             return new org.springframework.security.core.userdetails.User(
                 userOptional.get().getUserName(), 
                 userOptional.get().getPassword(), 
+                enabled,
+                true,
+                true,
+                true,
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + roleName))
             );
         } catch (Exception e) {

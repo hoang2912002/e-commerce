@@ -11,7 +11,7 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import com.fashion.resource.common.util.SplitCamelCase;
 import com.fashion.resource.dto.response.PermissionResponse.InnerPermissionResponse;
-import com.fashion.resource.dto.response.kafka.KafkaPermissionRegisterResponse;
+import com.fashion.resource.dto.response.kafka.PermissionRegisteredEvent;
 import com.fashion.resource.service.EndpointScannerService;
 
 import lombok.AccessLevel;
@@ -27,10 +27,10 @@ public class EndpointScannerServiceImpl implements EndpointScannerService {
     RequestMappingHandlerMapping handlerMapping;
 
     @Override
-    public List<KafkaPermissionRegisterResponse> listPermission() {
+    public List<PermissionRegisteredEvent> listPermission() {
         Map<RequestMappingInfo, HandlerMethod> map = handlerMapping.getHandlerMethods();
 
-        List<KafkaPermissionRegisterResponse> permissions = new ArrayList<>();
+        List<PermissionRegisteredEvent> permissions = new ArrayList<>();
 
         map.forEach((info, handlerMethod) -> {
 
@@ -56,7 +56,7 @@ public class EndpointScannerServiceImpl implements EndpointScannerService {
                     handlerMethod.getMethod().getName());
 
             permissions.add(
-                    KafkaPermissionRegisterResponse.builder()
+                    PermissionRegisteredEvent.builder()
                             .apiPath(path)
                             .method(method)
                             .module(module)

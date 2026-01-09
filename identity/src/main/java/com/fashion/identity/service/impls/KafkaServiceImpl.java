@@ -1,8 +1,7 @@
-package com.fashion.notification.service.impls;
+package com.fashion.identity.service.impls;
 
 import java.util.concurrent.CompletableFuture;
 
-import org.apache.kafka.clients.KafkaClient;
 import org.apache.kafka.common.errors.SerializationException;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -10,14 +9,15 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.stereotype.Service;
 
-import com.fashion.notification.common.enums.EnumError;
-import com.fashion.notification.exception.KafkaException;
-import com.fashion.notification.service.KafkaService;
+import com.fashion.identity.common.enums.EnumError;
+import com.fashion.identity.exception.KafkaException;
+import com.fashion.identity.service.KafkaService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -40,10 +40,10 @@ public class KafkaServiceImpl<K, V> implements KafkaService {
                     .build()
             );
         } catch (SerializationException exception) {
-            log.error("NOTIFICATION-SERVICE: SerializationException: {}" + exception.getMessage(), exception);
+            log.error("IDENTITY-SERVICE: SerializationException: {}" + exception.getMessage(), exception);
         }
     }
-    
+
     @Override
     public void sendAndCallBack(String topic, Object value) {
         this.sendAndCallBack(topic, null, value);
@@ -64,13 +64,11 @@ public class KafkaServiceImpl<K, V> implements KafkaService {
                         topic, result.getRecordMetadata().partition(), result.getRecordMetadata().offset());
                 } else {
                     log.error("Send kafka error to topic [{}]. Reason: {}", topic, ex.getMessage());
-                    throw new KafkaException(EnumError.NOTIFICATION_KAFKA_REQUEST_TIME_OUT_WITH_BROKER,"kafka.error.request.time.out");
+                    throw new KafkaException(EnumError.IDENTITY_KAFKA_REQUEST_TIME_OUT_WITH_BROKER,"kafka.error.request.time.out");
                 }
             });
         } catch (SerializationException exception) {
-            log.error("NOTIFICATION-SERVICE: SerializationException: {}" + exception.getMessage(), exception);
+            log.error("IDENTITY-SERVICE: SerializationException: {}" + exception.getMessage(), exception);
         }
     }
-
-    
 }

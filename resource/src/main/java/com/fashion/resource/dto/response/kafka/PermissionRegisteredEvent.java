@@ -1,4 +1,4 @@
-package com.fashion.identity.dto.response.kafka;
+package com.fashion.resource.dto.response.kafka;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -12,11 +12,11 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class KafkaPermissionRegisterResponse {
+public class PermissionRegisteredEvent {
     Long id;
-    String name;
-    String apiPath;
-    String method;
-    String module;
-    String service;
+        String name;
+        String apiPath;
+        String method;
+        String module;
+        String service;
 }

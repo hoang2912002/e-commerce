@@ -1,9 +1,12 @@
 package com.fashion.identity.service.impls;
 
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -11,12 +14,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.format.datetime.DateFormatter;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.identity.common.enums.EnumError;
 import com.fashion.identity.common.util.ConvertUuidUtil;
+import com.fashion.identity.common.util.FormatTime;
 import com.fashion.identity.common.util.PageableUtils;
 import com.fashion.identity.common.util.SpecificationUtils;
 import com.fashion.identity.dto.request.search.user.UserSearchModel;
@@ -26,11 +31,13 @@ import com.fashion.identity.dto.response.AddressResponse;
 import com.fashion.identity.dto.response.PaginationResponse;
 import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.dto.response.AddressResponse.InnerAddressResponse;
+import com.fashion.identity.dto.response.kafka.UserVerifyCodeEvent;
 import com.fashion.identity.entity.Address;
 import com.fashion.identity.entity.Role;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.exception.ServiceException;
 import com.fashion.identity.mapper.UserMapper;
+import com.fashion.identity.messaging.producer.IdentityServiceProducer;
 import com.fashion.identity.repository.RoleRepository;
 import com.fashion.identity.repository.UserRepository;
 import com.fashion.identity.service.AddressService;
@@ -51,6 +58,7 @@ public class UserServiceImpl implements UserService{
     PasswordEncoder passwordEncoder;
     AddressService addressService;
     RoleRepository roleRepository;
+    IdentityServiceProducer identityProducer;
 
     @Override
     @Transactional(readOnly = true)
@@ -158,6 +166,9 @@ public class UserServiceImpl implements UserService{
             if(Objects.isNull(role)){
                 throw new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID,"role.not.found.id", Map.of("roleId", user.getRole().getId()));
             }
+            // Random code
+            SecureRandom secureRandom = new SecureRandom();
+            int code = 100000 + secureRandom.nextInt(900000);
             final User userForCreate = User
                 .builder()
                 .fullName(user.getFullName())
@@ -168,9 +179,23 @@ public class UserServiceImpl implements UserService{
                 .userName(user.getUserName())
                 .dob(user.getDob())
                 .role(role)
+                .emailVerified(false)
+                .verificationCode(String.valueOf(code))
+                .verificationExpiration(LocalDateTime.now().plusMinutes(5))
                 .activated(true)
                 .build();
             final User savedUser = this.userRepository.save(userForCreate);
+            if(savedUser.getId() instanceof UUID && Objects.nonNull(savedUser)){
+                identityProducer.produceUserEventSuccess(
+                    UserVerifyCodeEvent.builder()
+                    .id(savedUser.getId())
+                    .fullName(savedUser.getFullName())
+                    .email(savedUser.getEmail())
+                    .verifyCode(savedUser.getVerificationCode())
+                    .verificationExpiration(FormatTime.StringDateLocalDateTime(savedUser.getVerificationExpiration()))
+                    .build()
+                );
+            }
             // Save address
             final List<InnerAddressResponse> addressServices = this.addressService.handleAddressesForUser(
                 savedUser, 

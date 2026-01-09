@@ -41,4 +41,11 @@ public interface UserRepository extends JpaRepository<User, UUID>,JpaSpecificati
         @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
     })
     User lockUserById(@Param("id") UUID id);
+    
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM User u WHERE u.email = :email")
+    @QueryHints({
+        @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
+    })
+    User lockUserByEmail(@Param("email") String email);
 }

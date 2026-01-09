@@ -7,9 +7,11 @@ import com.fashion.identity.common.annotation.ApiMessageResponse;
 import com.fashion.identity.common.response.ApiResponse;
 import com.fashion.identity.dto.request.LoginRequest;
 import com.fashion.identity.dto.request.UserRequest;
+import com.fashion.identity.dto.request.VerifyEmailRequest;
 import com.fashion.identity.dto.request.VerifyTokenRequest;
 import com.fashion.identity.dto.response.LoginResponse;
 import com.fashion.identity.dto.response.UserResponse;
+import com.fashion.identity.dto.response.VerifyEmailResponse;
 import com.fashion.identity.dto.response.VerifyTokenResponse;
 import com.fashion.identity.dto.response.LoginResponse.LoginResponseUserData;
 import com.fashion.identity.entity.Role;
@@ -117,6 +119,7 @@ public class AuthenticateController {
     }
     
     @PostMapping("/verifyAccessToken")
+    @ApiMessageResponse("auth.success.verify.access.token")
     ResponseEntity<VerifyTokenResponse> verifyAccessToken(@RequestBody VerifyTokenRequest request)
     {
         boolean result = authenticateService.verifyAccessToken(request.getToken());
@@ -124,8 +127,27 @@ public class AuthenticateController {
     }
 
     @PostMapping("/register")
+    @ApiMessageResponse("auth.success.register")
     public ResponseEntity<UserResponse> register(@RequestBody @Validated(UserRequest.Create.class) UserRequest entity) {
         return ResponseEntity.status(HttpStatus.CREATED).body(this.userService.createUser(this.userMapper.toValidated(entity)));
+    }
+    
+    @PostMapping("/verifyEmail")
+    @ApiMessageResponse("auth.success.verify.email")
+    public ResponseEntity<LoginResponse> verifyEmail(@RequestBody @Valid VerifyEmailRequest verifyEmailRequest) {
+        VerifyEmailResponse verifyEmailResponse = this.authenticateService.verifyEmail(verifyEmailRequest);
+
+        //Create cookie for refresh_token
+        ResponseCookie springCookie = ResponseCookie.from("refresh_token", verifyEmailResponse.getRefreshToken())
+            .httpOnly(true)
+            .secure(true)
+            .path(cookiePath)
+            .maxAge(refreshTokenExpiration)
+            .sameSite(cookieSameSite)
+            .domain(cookieDomain)
+            .build();
+        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, springCookie.toString())
+            .body(verifyEmailResponse.getResponse());
     }
     
 }

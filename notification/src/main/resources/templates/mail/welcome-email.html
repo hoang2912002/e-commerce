@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Welcome to Fashion Shop</title>
+</head>
+<body style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f9f9f9; padding: 20px; margin: 0;">
+<div style="max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border: 1px solid #eee;">
+    
+    <div style="background-color: #1a1a1a; padding: 30px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 28px; letter-spacing: 2px;">FASHION SHOP</h1>
+        <p style="color: #bcbcbc; margin-top: 5px; font-size: 14px;">Nâng tầm phong cách của bạn</p>
+    </div>
+
+    <div style="padding: 40px 30px;">
+        <h2 style="color: #333; margin-top: 0;">Chào mừng <span th:text="${fullName}" style="color: #2f80ed;">User</span>!</h2>
+        
+        <p style="font-size: 16px; color: #555; line-height: 1.6;">
+            Chúc mừng bạn! Tài khoản của bạn với email <strong th:text="${email}">example@gmail.com</strong> đã được xác thực thành công. 
+        </p>
+
+        <div style="background-color: #f8f9fa; border-left: 4px solid #2f80ed; padding: 20px; margin: 25px 0;">
+            <p style="margin: 0; font-size: 15px; color: #333;">
+                <strong>Bạn có thể làm gì ngay bây giờ?</strong>
+            </p>
+            <ul style="margin: 10px 0 0 0; padding-left: 20px; color: #555; font-size: 14px; line-height: 1.8;">
+                <li>Khám phá những sản phẩm mới nhất.</li>
+                <li>Lưu sản phẩm yêu thích vào Wishlist.</li>
+                <li>Nhận thông báo về các chương trình giảm giá độc quyền.</li>
+            </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 35px;">
+            <a href="https://fashion-shop.com/shop" 
+               style="background-color: #2f80ed; color: #ffffff; padding: 15px 35px; text-decoration: none; font-weight: bold; border-radius: 6px; display: inline-block;">
+               Bắt đầu mua sắm ngay
+            </a>
+        </div>
+    </div>
+
+    <div style="background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #888;">
+        <p style="margin: 5px 0;">Bạn nhận được email này vì đã đăng ký tài khoản tại Fashion Shop.</p>
+        <p style="margin: 5px 0;">© 2026 <strong>Fashion Shop</strong>. 123 Street, Ho Chi Minh City, Vietnam.</p>
+        <div style="margin-top: 10px;">
+            <a href="#" style="color: #2f80ed; text-decoration: none; margin: 0 10px;">Hỗ trợ</a> | 
+            <a href="#" style="color: #2f80ed; text-decoration: none; margin: 0 10px;">Chính sách bảo mật</a>
+        </div>
+    </div>
+</div>
+</body>
+</html>
