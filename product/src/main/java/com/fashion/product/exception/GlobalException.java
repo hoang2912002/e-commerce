@@ -68,7 +68,7 @@ public class GlobalException {
             args = kEx.getErrors() != null ? kEx.getErrors().values().toString() : new Object[]{};
             errors = kEx.getErrors();
         } else {
-            enumError = EnumError.NOTIFICATION_INTERNAL_ERROR_CALL_API;
+            enumError = EnumError.PRODUCT_INTERNAL_ERROR_CALL_API;
             errorCode = "server.error.internal";
             errors = null;
         }
@@ -111,7 +111,7 @@ public class GlobalException {
                 .code(HttpStatus.BAD_REQUEST.value())
                 .message(message)
                 .language(Objects.nonNull(languageHeader) ? languageHeader : defaultLanguage)
-                .errorCode(EnumError.NOTIFICATION_INTERNAL_ERROR_CALL_API.getCode())
+                .errorCode(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API.getCode())
                 .errors(Map.of(fieldName, message))
                 .timestamp(LocalDateTime.now())
                 .path(path)

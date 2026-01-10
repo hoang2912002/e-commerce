@@ -7,6 +7,8 @@ import java.util.UUID;
 
 import org.hibernate.annotations.GenericGenerator;
 
+import com.fashion.product.common.annotation.Searchable;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -41,9 +43,11 @@ public class Category extends AbstractAuditingEntity<UUID>{
         return this.id;
     }
 
+    @Searchable
     @Column(name = "name", length = 100)
     String name;
 
+    @Searchable
     @Column(name = "slug", length = 100)
     String slug;
 

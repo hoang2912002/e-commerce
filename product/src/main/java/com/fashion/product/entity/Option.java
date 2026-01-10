@@ -3,6 +3,8 @@ package com.fashion.product.entity;
 import java.util.List;
 import java.util.UUID;
 
+import com.fashion.product.common.annotation.Searchable;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -36,9 +38,11 @@ public class Option extends AbstractAuditingEntity<Long>{
         return this.id;
     }
 
+    @Searchable
     @Column(name = "name", length = 100)
     String name;
 
+    @Searchable
     @Column(name = "slug", length = 100)
     String slug;
 

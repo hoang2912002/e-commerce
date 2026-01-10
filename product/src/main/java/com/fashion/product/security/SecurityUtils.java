@@ -68,7 +68,7 @@ public class SecurityUtils {
             return jwtDecoder.decode(token);
         } catch (Exception e) {
             // throw e;
-            throw new ServiceException(EnumError.NOTIFICATION_USER_INVALID_REFRESH_TOKEN, "user.refresh.token.notFormat", Map.of("refresh_token", "wrong"));
+            throw new ServiceException(EnumError.PRODUCT_USER_INVALID_REFRESH_TOKEN, "user.refresh.token.notFormat", Map.of("refresh_token", "wrong"));
         }
     }
 

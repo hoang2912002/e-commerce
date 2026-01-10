@@ -2,6 +2,8 @@ package com.fashion.product.entity;
 
 import java.util.List;
 
+import com.fashion.product.common.annotation.Searchable;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -37,9 +39,11 @@ public class OptionValue extends AbstractAuditingEntity<Long>{
         return this.id;
     }
 
-    @Column(name = "name", length = 100)
-    String name;
+    @Searchable
+    @Column(name = "value", length = 100)
+    String value;
 
+    @Searchable
     @Column(name = "slug", length = 100)
     String slug;
 

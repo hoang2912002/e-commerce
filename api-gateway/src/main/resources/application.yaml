@@ -5,6 +5,8 @@ app:
 service:
   identity:
     url: http://localhost:8080
+  product:
+    url: http://localhost:8081
   notification:
     url: http://localhost:8086
   resource:
@@ -36,6 +38,12 @@ spring:
             uri: ${service.notification.url}
             predicates:
             - Path=${app.api-prefix}/notification/**
+            filters:
+              - StripPrefix=2
+          - id: product-service
+            uri: ${service.product.url}
+            predicates:
+            - Path=${app.api-prefix}/product/**
             filters:
               - StripPrefix=2
 jwt:
