@@ -11,7 +11,10 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public enum EnumError {
-
+    // Address 
+    IDENTITY_ADDRESS_INVALID_OWNER("IDENTITY-ADDRESS-INVALID-OWNER","The address belongs only to the store or the user:",HttpStatus.BAD_REQUEST),
+    IDENTITY_ADDRESS_DATA_EXISTED("IDENTITY-ADDRESS-DATA-EXISTED", "The address already existed:",HttpStatus.BAD_REQUEST),
+    IDENTITY_ADDRESS_ERR_NOT_FOUND_ID("IDENTITY-ADDRESS-ERR-NOT-FOUND-ID","Not found address with id:",HttpStatus.BAD_REQUEST),
     // Auth
     IDENTITY_USER_ERR_NOT_FOUND_USERNAME("IDENTITY-USER_ERR-NOT-FOUND-USERNAME","Not found user with userName:",HttpStatus.BAD_REQUEST),
     IDENTITY_USER_ERR_NOT_FOUND_USERNAME_PASSWORD("IDENTITY-USER_ERR-NOT-FOUND-USERNAME-PASSWORD","Invalid account/password",HttpStatus.BAD_REQUEST),

@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.hibernate.annotations.GenericGenerator;
 
+import com.fashion.product.common.annotation.Searchable;
 import com.fashion.product.common.enums.PromotionEnum;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
@@ -46,9 +47,12 @@ public class Promotion extends AbstractAuditingEntity<UUID>{
     public UUID getId() {
         return this.id;
     }
+
+    @Searchable
     @Column(name = "code", unique = true, length = 50)
     String code;
     
+    @Searchable
     @Column(name = "name", length = 100)
     String name;
 

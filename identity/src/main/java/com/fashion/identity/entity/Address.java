@@ -63,7 +63,7 @@ public class Address extends AbstractAuditingEntity{
     private User user;
 
     @Column(name = "shop_management_id")
-    String shopManagementId;
+    UUID shopManagementId;
 
     @Column(name = "current_user_address")
     Boolean currentUserAddress;

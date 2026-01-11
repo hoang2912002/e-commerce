@@ -220,7 +220,7 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    public UserResponse getUserById(String id){
+    public UserResponse getUserById(UUID id){
         try {
             final User user = this.findRawUserById(id);
             if(Objects.isNull(user)){
@@ -277,7 +277,7 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    public void deleteUserById(String id) {
+    public void deleteUserById(UUID id) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'deleteUserById'");
     }

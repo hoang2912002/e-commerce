@@ -1,6 +1,7 @@
 package com.fashion.identity.service;
 
 import java.util.List;
+import java.util.UUID;
 
 import com.fashion.identity.dto.request.search.user.UserSearchRequest;
 import com.fashion.identity.dto.response.PaginationResponse;
@@ -14,7 +15,7 @@ public interface UserService {
     User updateRefreshTokenUserByUserName(String userName, String refreshToken);
     UserResponse createUser(User user);
     UserResponse updateUser(User user);
-    UserResponse getUserById(String id);
+    UserResponse getUserById(UUID id);
     PaginationResponse<List<UserResponse>> getAllUsers(UserSearchRequest request);
-    void deleteUserById(String id);
+    void deleteUserById(UUID id);
 }

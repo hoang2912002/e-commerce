@@ -3,6 +3,10 @@ package com.fashion.product.dto.response;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.fashion.product.dto.response.CategoryResponse.InnerCategoryResponse;
+import com.fashion.product.dto.response.OptionResponse.InnerOptionResponse;
+import com.fashion.product.dto.response.OptionValueResponse.InnerOptionValueResponse;
+
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,25 +19,33 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class CategoryResponse {
+public class ProductResponse {
     UUID id;
     String name;
-    String slug;
-    InnerCategoryResponse parent;
+    String price;
+    String thumbnail;
+    Integer quantity;
+    
+    String description;
     String createdBy;
     Instant createdAt;
     String updatedBy;
     Instant updatedAt;
     Boolean activated;
 
+    InnerCategoryResponse category;
+    // InnerShopManagementResponse shopManagement;
+    // List<InnerProductSkuResponse> productSkus;
+    // List<InnerOptionResponse> options;
+    // List<InnerOptionValueResponse> optionValues;
+
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class InnerCategoryResponse {
+    public static class InnerProductResponse {
         UUID id;
         String name;
-        String slug;
     }
 }

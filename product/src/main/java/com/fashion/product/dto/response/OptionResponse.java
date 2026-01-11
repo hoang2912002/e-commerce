@@ -22,7 +22,7 @@ public class OptionResponse {
     String slug;
     String createdBy;
     Instant createdAt;
-    boolean activated;
+    Boolean activated;
     Instant updatedAt;
     String updatedBy;
     List<InnerOptionValueResponse> optionValues;

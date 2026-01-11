@@ -22,7 +22,7 @@ import com.fashion.product.entity.Option;
         OptionValueMapper.class
     }
 )
-public interface OptionMapper extends EntityMapper<OptionResponse,Option, InnerOptionResponse>{
+public interface OptionMapper extends EntityMapper<OptionResponse,Option, InnerOptionResponse, OptionRequest>{
     OptionMapper INSTANCE = Mappers.getMapper(OptionMapper.class);
 
     @Named("toDto")

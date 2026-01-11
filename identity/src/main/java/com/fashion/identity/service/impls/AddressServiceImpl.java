@@ -2,15 +2,22 @@ package com.fashion.identity.service.impls;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.identity.common.enums.EnumError;
+import com.fashion.identity.dto.request.search.user.UserSearchRequest;
+import com.fashion.identity.dto.response.AddressResponse;
+import com.fashion.identity.dto.response.PaginationResponse;
 import com.fashion.identity.entity.Address;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.exception.ServiceException;
+import com.fashion.identity.mapper.AddressMapper;
 import com.fashion.identity.repository.AddressRepository;
 import com.fashion.identity.service.AddressService;
 
@@ -24,7 +31,8 @@ import lombok.extern.slf4j.Slf4j;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class AddressServiceImpl implements AddressService{
     AddressRepository addressRepository;
-
+    AddressMapper addressMapper;
+    
     @Override
     @Transactional(rollbackFor= ServiceException.class)
     public <T> List<T> handleAddressesForUser(
@@ -63,6 +71,87 @@ public class AddressServiceImpl implements AddressService{
             log.error("IDENTITY-SERVICE: handleAddressesForUser: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor= ServiceException.class)
+    public AddressResponse createAddress(Address address) {
+        try {
+            this.checkExistAddress(address.getUser().getId(),address.getShopManagementId(), address.getAddress(), address.getDistrict(), address.getProvince(), address.getWard(), null);
+            return this.addressMapper.toDto(address);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("IDENTITY-SERVICE: createAddress: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor= ServiceException.class)
+    public AddressResponse updateAddress(Address address) {
+        try {
+            this.checkExistAddress(address.getUser().getId(),address.getShopManagementId(), address.getAddress(), address.getDistrict(), address.getProvince(), address.getWard(), address.getId());
+            return this.addressMapper.toDto(address);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("IDENTITY-SERVICE: updateAddress: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AddressResponse getAddressById(UUID id) {
+        try {
+            Address address = this.addressRepository.findById(id).orElseThrow(
+                () -> new ServiceException(EnumError.IDENTITY_ADDRESS_ERR_NOT_FOUND_ID, "address.not.found.id",Map.of("id", id))
+            );
+            return this.addressMapper.toDto(address);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("IDENTITY-SERVICE: getAddressById: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    public PaginationResponse<List<AddressResponse>> getAllAddresses(UserSearchRequest request) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getAllAddresses'");
+    }
+
+    @Override
+    public void deleteAddressById(UUID id) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'deleteAddressById'");
+    }
+
+    private void checkExistAddress(UUID userId, UUID smId, String address, String district, String province, String ward, UUID excludeId){
+        if (userId != null && smId != null) {
+            throw new ServiceException(EnumError.IDENTITY_ADDRESS_INVALID_OWNER, "address.cannot.have.both.owners");
+        }
+        if (userId == null && smId == null) {
+            throw new ServiceException(EnumError.IDENTITY_ADDRESS_INVALID_OWNER, "address.must.have.owner");
+        }
+        Optional<Address> duplicate;
+    
+        if (excludeId == null) {
+            duplicate = this.addressRepository.findDuplicateForCreate(userId, smId, address, district, province, ward);
+        } else {
+            duplicate = this.addressRepository.findDuplicateForUpdate(userId, smId, address, district, province, ward, excludeId);
+        }
+
+        duplicate.ifPresent(user -> {
+            throw new ServiceException(EnumError.IDENTITY_ADDRESS_DATA_EXISTED,"user.exist.address.ward.district.province", Map.of(
+                "address", address,
+                "ward", ward,
+                "district", district,
+                "province", province
+            ));
+        });
     }
 
     private void updateAddressData(Address target, Address source) {

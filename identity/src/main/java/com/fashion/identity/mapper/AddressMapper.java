@@ -32,9 +32,9 @@ public interface AddressMapper extends EntityMapper<AddressResponse, Address, In
     InnerAddressResponse toInnerEntity(Address entity);
     List<InnerAddressResponse> toInnerEntity(List<Address> entity);
 
-    // @Named("toValidated")
+    @Named("toValidated")
     // @Mapping(target = "id", source = "id", qualifiedByName = "addressToUuid")
-    // Address toValidated(AddressRequest dto);
+    Address toValidated(AddressRequest dto);
     
 
     // // Format id thành type UUID

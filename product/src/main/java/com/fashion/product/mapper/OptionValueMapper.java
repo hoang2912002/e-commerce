@@ -15,7 +15,7 @@ import com.fashion.product.entity.OptionValue;
 @Mapper(
     componentModel = "spring"
 )
-public interface OptionValueMapper extends EntityMapper<OptionValueResponse, OptionValue, InnerOptionValueResponse>{
+public interface OptionValueMapper extends EntityMapper<OptionValueResponse, OptionValue, InnerOptionValueResponse, OptionValueRequest>{
     OptionValueMapper INSTANCE = Mappers.getMapper(OptionValueMapper.class);
     
     @Named("toDto")

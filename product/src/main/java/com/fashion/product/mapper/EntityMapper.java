@@ -13,11 +13,13 @@ import org.mapstruct.NullValuePropertyMappingStrategy;
  * D - Data Transfer Object type
  * E - Entity type
  * I - Inner Entity type
+ * R - Request
  */
-public interface EntityMapper<D, E, I> {
+public interface EntityMapper<D, E, I, R> {
     D toDto(E entity);
     E toEntity(D dto);
     I toInnerEntity(E entity);
+    E toValidated (R request);
 
     List<E> toEntity (List<D> d);
     List<D> toDto (List<E> e);
@@ -25,5 +27,5 @@ public interface EntityMapper<D, E, I> {
     
     @Named("toUpdate")
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    void toUpdate(@MappingTarget E entity, D dto);
+    E toUpdate(@MappingTarget E entity, R request);
 }

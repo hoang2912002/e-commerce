@@ -2,6 +2,19 @@ server:
   port: 8081
   servlet:
     context-path: /product
+service:
+  identity:
+    url: http://localhost:8080/identity
+    name: identity-service
+  product:
+    url: http://localhost:8081/product
+    name: product-service
+  notification:
+    url: http://localhost:8086/notification
+    name: notification-service
+  resource:
+    url: http://localhost:8087/resource
+    name: resource-service
 spring:
   application:
     name: product-service
@@ -52,3 +65,6 @@ jwt:
   base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
   access-token-in-seconds: 86400
   refresh-token-in-seconds: 2592000
+role:
+  admin: ADMIN
+  seller: SELLER

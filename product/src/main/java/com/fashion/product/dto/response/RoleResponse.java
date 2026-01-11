@@ -1,7 +1,9 @@
 package com.fashion.product.dto.response;
 
 import java.time.Instant;
-import java.util.UUID;
+import java.util.List;
+
+import com.fashion.product.dto.response.PermissionResponse.InnerPermissionResponse;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -10,29 +12,29 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
-@Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Data
+@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class CategoryResponse {
-    UUID id;
+public class RoleResponse {
+    Long id;
     String name;
     String slug;
-    InnerCategoryResponse parent;
+    boolean activated;
     String createdBy;
-    Instant createdAt;
     String updatedBy;
+    Instant createdAt;
     Instant updatedAt;
-    Boolean activated;
+    List<InnerPermissionResponse> permissions;
 
-    @Data
-    @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @Data
+    @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class InnerCategoryResponse {
-        UUID id;
+    public static class InnerRoleResponse {
+        Long id;
         String name;
         String slug;
     }

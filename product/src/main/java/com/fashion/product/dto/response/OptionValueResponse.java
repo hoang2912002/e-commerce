@@ -21,9 +21,9 @@ public class OptionValueResponse {
     String slug;
     String createdBy;
     Instant createdAt;
-    boolean activated;
+    Boolean activated;
     Instant updatedAt;
-    boolean updatedBy;
+    String updatedBy;
     InnerOptionResponse option;
 
     @Data

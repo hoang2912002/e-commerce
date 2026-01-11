@@ -18,7 +18,7 @@ import com.fashion.product.dto.response.CategoryResponse.InnerCategoryResponse;
 @Mapper(
     componentModel = "spring"
 )
-public interface CategoryMapper extends EntityMapper<CategoryResponse,Category, InnerCategoryResponse>{
+public interface CategoryMapper extends EntityMapper<CategoryResponse,Category, InnerCategoryResponse, CategoryRequest>{
     CategoryMapper INSTANCE = Mappers.getMapper(CategoryMapper.class);
 
     @Named("toDto")

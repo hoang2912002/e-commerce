@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -71,7 +72,7 @@ public class UserController {
     @GetMapping("/{id}")
     @ApiMessageResponse("user.success.get.single")
     public ResponseEntity<UserResponse> getUserById(
-        @PathVariable("id") String id
+        @PathVariable("id") UUID id
     ) {
         return ResponseEntity.ok(this.userService.getUserById(id));
     }
@@ -79,7 +80,7 @@ public class UserController {
     @DeleteMapping("/{id}")
     @ApiMessageResponse("user.success.delete")
     public void deleteUserById(
-        @PathVariable("id") String id
+        @PathVariable("id") UUID id
     ){
         this.userService.deleteUserById(id);
     }
