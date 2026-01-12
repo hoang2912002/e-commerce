@@ -5,11 +5,16 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 import com.fashion.identity.entity.Address;
 import com.fashion.identity.entity.User;
+
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 
 public interface AddressRepository extends JpaRepository<Address, UUID>, JpaSpecificationExecutor<Address>{
     @Query("SELECT a FROM Address a WHERE " +
@@ -43,4 +48,18 @@ public interface AddressRepository extends JpaRepository<Address, UUID>, JpaSpec
         @Param("ward") String ward,
         @Param("excludeId") UUID excludeId
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Address a WHERE a.id = :id")
+    @QueryHints({
+        @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
+    })
+    Address lockAddressById(@Param("id") UUID id);
+    
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Address a WHERE a.shopManagementId = :smId")
+    @QueryHints({
+        @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
+    })
+    Address lockAddressByShopId(@Param("smId") UUID shopManagementId);
 }

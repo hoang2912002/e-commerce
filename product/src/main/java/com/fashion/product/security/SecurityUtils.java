@@ -2,6 +2,7 @@ package com.fashion.product.security;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -53,7 +54,7 @@ public class SecurityUtils {
             .map(authentication -> (String) authentication.getCredentials());
     }
 
-    public static Optional<Long> getCurrentUserId() {
+    public static Optional<UUID> getCurrentUserId() {
         SecurityContext securityContext = SecurityContextHolder.getContext();
         return Optional.ofNullable(securityContext.getAuthentication())
             .filter(authentication -> authentication.getPrincipal() instanceof ClaimAccessor)

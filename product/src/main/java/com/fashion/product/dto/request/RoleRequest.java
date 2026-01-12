@@ -39,7 +39,7 @@ public class RoleRequest {
     @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InnerRoleRequest {
-        @NotNull(message = "role.id.notNull")
+        @NotNull(message = "role.id.notNull", groups = {ApprovalMasterRequest.Create.class, ApprovalMasterRequest.Update.class})
         Long id;
     }
 }

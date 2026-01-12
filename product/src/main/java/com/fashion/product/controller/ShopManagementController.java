@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -40,9 +41,9 @@ public class ShopManagementController {
     @PostMapping("")
     @ApiMessageResponse("shop.management.success.create")
     public ResponseEntity<ShopManagementResponse> createShopManagement(
-        @RequestBody @Valid ShopManagementRequest shopManagementRequest
+        @RequestBody @Validated(ShopManagementRequest.Create.class) ShopManagementRequest shopManagementRequest
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(this.shopManagementService.createShopManagement(shopManagementMapper.toValidated(shopManagementRequest)));
+        return ResponseEntity.status(HttpStatus.CREATED).body(this.shopManagementService.createShopManagement(shopManagementRequest));
     }
 
     @PutMapping("")
@@ -50,7 +51,7 @@ public class ShopManagementController {
     public ResponseEntity<ShopManagementResponse> updateShopManagement(
         @RequestBody @Valid ShopManagementRequest shopManagementRequest
     ) {
-        return ResponseEntity.status(HttpStatus.OK).body(this.shopManagementService.updateShopManagement(shopManagementMapper.toValidated(shopManagementRequest)));
+        return ResponseEntity.status(HttpStatus.OK).body(this.shopManagementService.updateShopManagement(shopManagementRequest));
     }
 
     @GetMapping("/{id}")

@@ -13,6 +13,7 @@ import com.fashion.identity.entity.User;
 public interface AddressService {
     <T> List<T> handleAddressesForUser(User user, List<Address> addresses, Function<Address, T> mapper);
     AddressResponse createAddress(Address address);
+    void upSertShopManagementAddress(Address address);
     AddressResponse updateAddress(Address address);
     AddressResponse getAddressById(UUID id);
     PaginationResponse<List<AddressResponse>> getAllAddresses(UserSearchRequest request);

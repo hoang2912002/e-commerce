@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.hibernate.annotations.GenericGenerator;
 
+import com.fashion.product.common.annotation.Searchable;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.persistence.Column;
@@ -42,15 +43,18 @@ public class ShopManagement extends AbstractAuditingEntity<UUID>{
         return this.id;
     }
 
+    @Searchable
     @Column(name = "name", length = 255, nullable = false)
     String name;
     
     @Column(name = "slug", length = 255, nullable = false)
     String slug;
 
+    @Searchable
     @Column(name = "business_name", length = 255)
     String businessName;
     
+    @Searchable
     @Column(name = "business_no", length = 255)
     String businessNo;
 
@@ -66,15 +70,19 @@ public class ShopManagement extends AbstractAuditingEntity<UUID>{
     @Column(name = "business_type")
     Integer businessType;
 
+    @Searchable
     @Column(name = "account_name")
     String accountName;
 
+    @Searchable
     @Column(name = "account_number")
     String accountNumber;
 
+    @Searchable
     @Column(name = "bank_name")
     String bankName;
 
+    @Searchable
     @Column(name = "bank_branch")
     String bankBranch;
 

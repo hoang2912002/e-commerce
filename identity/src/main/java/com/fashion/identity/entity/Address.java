@@ -62,7 +62,8 @@ public class Address extends AbstractAuditingEntity{
     @JsonBackReference
     private User user;
 
-    @Column(name = "shop_management_id")
+    @JdbcTypeCode(SqlTypes.CHAR) // Ép kiểu JDBC về CHAR(36)
+    @Column(name = "shop_management_id", length = 36)
     UUID shopManagementId;
 
     @Column(name = "current_user_address")

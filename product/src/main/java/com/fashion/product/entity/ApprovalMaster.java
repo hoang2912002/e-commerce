@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import org.hibernate.annotations.GenericGenerator;
 
+import com.fashion.product.common.annotation.Searchable;
 import com.fashion.product.common.enums.ApprovalMasterEnum;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
@@ -44,12 +45,14 @@ public class ApprovalMaster extends AbstractAuditingEntity<UUID>{
         return this.id;
     }
 
+    @Searchable
     @Column(name = "entity_type", length = 100, nullable = false)
     String entityType; // -- PRODUCT, INVENTORY, PURCHASE_ORDER...
 
     @Column(name = "step", nullable = false)
     Integer step; // 1, 2, 3, 4
     
+    @Searchable
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     ApprovalMasterEnum status;

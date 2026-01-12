@@ -61,6 +61,8 @@ spring:
         permission-register: com.identity.permission_register
         user-created: com.identity.user.created  # Gửi mail verify account khi tạo user
         user-created-success: com.identity.user.created.success # Gửi mail thông báo đăng ký thành công
+      product:
+        shop-management-created-success: com.product.shop.management.created.success
 jwt:
   base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
   access-token-in-seconds: 86400

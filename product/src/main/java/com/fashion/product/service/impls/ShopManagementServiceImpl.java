@@ -11,6 +11,10 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,21 +23,32 @@ import org.springframework.web.context.request.RequestContextHolder;
 
 import com.fashion.product.common.enums.EnumError;
 import com.fashion.product.common.response.ApiResponse;
+import com.fashion.product.common.util.AsyncUtils;
 import com.fashion.product.common.util.ConvertUuidUtil;
+import com.fashion.product.common.util.PageableUtils;
 import com.fashion.product.common.util.SlugUtil;
+import com.fashion.product.common.util.SpecificationUtils;
+import com.fashion.product.dto.request.ShopManagementRequest;
+import com.fashion.product.dto.request.search.SearchModel;
+import com.fashion.product.dto.request.search.SearchOption;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.AddressResponse;
 import com.fashion.product.dto.response.PaginationResponse;
 import com.fashion.product.dto.response.ShopManagementResponse;
 import com.fashion.product.dto.response.UserResponse;
 import com.fashion.product.dto.response.AddressResponse.InnerAddressResponse;
+import com.fashion.product.dto.response.ApprovalMasterResponse;
 import com.fashion.product.dto.response.UserResponse.InnerUserResponse;
+import com.fashion.product.dto.response.kafka.ShopManagementAddressEvent;
+import com.fashion.product.entity.ApprovalMaster;
 import com.fashion.product.entity.Promotion;
 import com.fashion.product.entity.ShopManagement;
 import com.fashion.product.exception.ServiceException;
 import com.fashion.product.intergration.IdentityClient;
 import com.fashion.product.mapper.ShopManagementMapper;
+import com.fashion.product.messaging.provider.ProductServiceProvider;
 import com.fashion.product.repository.ShopManagementRepository;
+import com.fashion.product.service.KafkaService;
 import com.fashion.product.service.ShopManagementService;
 
 import lombok.AccessLevel;
@@ -48,6 +63,8 @@ public class ShopManagementServiceImpl implements ShopManagementService{
     final IdentityClient identityClient;
     final ShopManagementRepository shopManagementRepository;
     final ShopManagementMapper shopManagementMapper;
+    final ProductServiceProvider productServiceProvider;
+    
     @Value("${role.admin}")
     String roleAmin;
     
@@ -80,9 +97,11 @@ public class ShopManagementServiceImpl implements ShopManagementService{
     );
     @Override
     @Transactional(rollbackFor = ServiceException.class)
-    public ShopManagementResponse createShopManagement(ShopManagement shopManagement) {
+    public ShopManagementResponse createShopManagement(ShopManagementRequest request) {
         log.info("PRODUCT-SERVICE: [createShopManagement] Start create shop management");
         try {
+            ShopManagement shopManagement = this.shopManagementMapper.toValidated(request);
+
             UserResponse userResponse = this.getUserResponse(shopManagement.getUserId());
             String slug = SlugUtil.toSlug(shopManagement.getName());
             this.checkPromotionExistByCode(shopManagement.getName(), null);
@@ -92,6 +111,16 @@ public class ShopManagementServiceImpl implements ShopManagementService{
 
             // Create approval history
 
+            // Send kafka 
+            ShopManagementAddressEvent addressEvent = ShopManagementAddressEvent.builder()
+                .id(null)
+                .address(request.getAddress().getAddress())
+                .district(request.getAddress().getDistrict())
+                .ward(request.getAddress().getWard())
+                .province(request.getAddress().getProvince())
+                .shopManagementId(smCreate.getId())
+                .build();
+            this.productServiceProvider.produceShopManagementEventSuccess(addressEvent);
             return this.shopManagementMapper.toDto(smCreate);
         } catch (ServiceException e) {
             throw e;
@@ -103,9 +132,10 @@ public class ShopManagementServiceImpl implements ShopManagementService{
 
     @Override
     @Transactional(rollbackFor = ServiceException.class)
-    public ShopManagementResponse updateShopManagement(ShopManagement shopManagement) {
+    public ShopManagementResponse updateShopManagement(ShopManagementRequest request) {
         log.info("PRODUCT-SERVICE: [updateShopManagement] Start create shop management");
         try {
+            ShopManagement shopManagement = this.shopManagementMapper.toValidated(request);
             ShopManagement upSM = this.shopManagementRepository.lockShopManagementById(shopManagement.getId());
             if(upSM == null){
                 throw new ServiceException(
@@ -124,11 +154,22 @@ public class ShopManagementServiceImpl implements ShopManagementService{
             upSM.setUserId(userResponse.getId());
             if(isImportantChange){
                 // Check approval history
-                throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+                // throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
             }
             else{
                 upSM.setDescription(shopManagement.getDescription());
             }
+            // Send kafka 
+            ShopManagementAddressEvent addressEvent = ShopManagementAddressEvent.builder()
+                .id(null)
+                .address(request.getAddress().getAddress())
+                .district(request.getAddress().getDistrict())
+                .ward(request.getAddress().getWard())
+                .province(request.getAddress().getProvince())
+                .shopManagementId(upSM.getId())
+                .build();
+            this.productServiceProvider.produceShopManagementEventSuccess(addressEvent);
+
             return this.shopManagementMapper.toDto(this.shopManagementRepository.save(upSM));
         } catch (ServiceException e) {
             throw e;
@@ -148,37 +189,15 @@ public class ShopManagementServiceImpl implements ShopManagementService{
                     "shop.management.not.found.id")
             );
 
-            RequestAttributes context = RequestContextHolder.getRequestAttributes();
             // Scatter-Gather Pattern (Mô hình Phân tán - Thu thập)
             // 1. Xử lý User Future: Kiểm tra userId trước khi gọi
-            CompletableFuture<UserResponse> userFuture;
-            if (shopManagement.getUserId() != null) {
-                userFuture = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        RequestContextHolder.setRequestAttributes(context);
-                        return identityClient.getUserById(shopManagement.getUserId()).getData();
-                    } finally {
-                        RequestContextHolder.resetRequestAttributes();
-                    }
-                });
-            } else {
-                userFuture = CompletableFuture.completedFuture(null);
-            }
-
-            // 2. Xử lý Address Future: Kiểm tra addressId trước khi gọi
-            CompletableFuture<AddressResponse> addressFuture;
-            if (shopManagement.getAddressId() != null) {
-                addressFuture = CompletableFuture.supplyAsync(() -> {
-                    try {
-                        RequestContextHolder.setRequestAttributes(context);
-                        return identityClient.getAddressById(shopManagement.getAddressId()).getData();
-                    } finally {
-                        RequestContextHolder.resetRequestAttributes();
-                    }
-                });
-            } else {
-                addressFuture = CompletableFuture.completedFuture(null);
-            }
+            CompletableFuture<UserResponse> userFuture = (shopManagement.getUserId() != null)
+                ? AsyncUtils.fetchAsync(() -> identityClient.getUserById(shopManagement.getUserId()))
+                : CompletableFuture.completedFuture(null);
+            
+            CompletableFuture<AddressResponse> addressFuture = (shopManagement.getAddressId() != null)
+                ? AsyncUtils.fetchAsync(() -> identityClient.getAddressById(shopManagement.getAddressId()))
+                : CompletableFuture.completedFuture(null);
 
             // Đợi cả 2 (nếu có)
             CompletableFuture.allOf(userFuture, addressFuture).join();
@@ -215,8 +234,35 @@ public class ShopManagementServiceImpl implements ShopManagementService{
     }
     @Override
     public PaginationResponse<List<ShopManagementResponse>> getAllShopManagement(SearchRequest request) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getAllShopManagement'");
+        try {
+            SearchOption searchOption = request.getSearchOption();
+            SearchModel searchModel = request.getSearchModel();
+
+            List<String> allowedField = List.of("createdAt");
+
+            PageRequest pageRequest = PageableUtils.buildPageRequest(
+                searchOption.getPage(), 
+                searchOption.getSize(), 
+                searchOption.getSort(), 
+                allowedField, 
+                "createdAt", 
+                Sort.Direction.DESC
+            );
+            List<String> fields = SpecificationUtils.getFieldsSearch(ShopManagement.class);
+            Specification<ShopManagement> spec = new SpecificationUtils<ShopManagement>()
+                .equal("activated", searchModel.getActivated())
+                .likeAnyFieldIgnoreCase(searchModel.getQ(), fields)
+                .build();
+
+            Page<ShopManagement> sPage = this.shopManagementRepository.findAll(spec, pageRequest);
+            List<ShopManagementResponse> shopManagementResponses = this.shopManagementMapper.toDto(sPage.getContent());
+            return PageableUtils.<ShopManagement, ShopManagementResponse>buildPaginationResponse(pageRequest, sPage, shopManagementResponses);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [getAllShopManagement] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
@@ -226,21 +272,9 @@ public class ShopManagementServiceImpl implements ShopManagementService{
     }
 
     @Override
-    public ShopManagement findRawShopManagementBySlug(String slug, UUID id) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'findRawShopManagementBySlug'");
-    }
-
-    @Override
     public ShopManagement findRawShopManagementById(UUID id) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'findRawShopManagementById'");
-    }
-
-    @Override
-    public ShopManagement findRawShopManagementByIdForUpdate(UUID id) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'findRawShopManagementByIdForUpdate'");
     }
 
     @Override

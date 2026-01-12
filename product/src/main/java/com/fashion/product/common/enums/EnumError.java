@@ -32,7 +32,13 @@ public enum EnumError {
     //----------------Promotion-------------------
     PRODUCT_PROMOTION_DATA_EXISTED_CODE("PRODUCT-PROMOTION-DATA-EXISTED-CODE","Promotion already exists with the given Code:",HttpStatus.CONFLICT),
     PRODUCT_PROMOTION_ERR_NOT_FOUND_ID("PRODUCT-PROMOTION-NOT-FOUND-ID","Not found promotion with id:",HttpStatus.BAD_REQUEST),
-   
+    
+    //----------------Product-------------------
+    PRODUCT_PRODUCT_DATA_EXISTED_NAME("PRODUCT-PRODUCT-DATA-EXISTED-NAME","Product already exists with the given Name:",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_ERR_NOT_FOUND_ID("PRODUCT-PRODUCT-NOT-FOUND-ID","Not found product with id:",HttpStatus.BAD_REQUEST),
+    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING("PRODUCT-PRODUCT-DTE-APPROVAL-PENDING","Product already exists with the pending approval request:",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_ERR_NOT_FOUND_SHOP_MANAGEMENT("PRODUCT-PRODUCT-NOT-FOUND-SHOP-MANAGEMENT","The user managing this shop management has no product",HttpStatus.CONFLICT),
+
     //----------------ShopManagement-------------------
     PRODUCT_SHOP_MANAGEMENT_DATA_EXISTED_NAME("PRODUCT-SHOP-MANAGEMENT-DATA-EXISTED-NAME","Shop management already exists with Name", HttpStatus.CONFLICT),
     PRODUCT_SHOP_MANAGEMENT_ERR_NOT_FOUND_ID("PRODUCT-SHOP-MANAGEMENT-NOT-FOUND-ID","Not found shop management with id:",HttpStatus.CONFLICT),
@@ -44,6 +50,26 @@ public enum EnumError {
     PRODUCT_PERMISSION_DATA_EXISTED_APIPATH_METHOD_SERVICE("PRODUCT-PERMISSION-DTE-APIPATH-METHOD-SERVICE","Permission already exists with the given Api path, Method, Service:",HttpStatus.CONFLICT),
     PRODUCT_PERMISSION_ERR_NOT_FOUND_ID("PRODUCT-PERMISSION-ERR-NOT-FOUND-ID","Not found permission with id:",HttpStatus.BAD_REQUEST),
     PRODUCT_PERMISSION_ACCESS_DENIED("PRODUCT-PERMISSION-ACCESS-DENIED","You do not have permission to access this resource.",HttpStatus.FORBIDDEN),
+
+    //----------------ApprovalMaster-------------------
+    PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ID("PRODUCT-APPROVAL-MASTER-NOT-FOUND-ID","Not found approval master with id:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_EXISTED_ENTITY_TYPE_STATUS_STEP("PRODUCT-APPROVAL-MASTER-DATA-EXISTED-ENTITY-TYPE-STATUS-STEP","Approval master already exists with the given EntityType, Status, and Step:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_STATUS_REJECTED_CANNOT_ADD_HISTORY("PRODUCT-APPROVAL-MASTER-STATUS-REJECTED-CANNOT-ADD-HISTORY","Cannot add approval history to an approval master with REJECTED status:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_STATUS_PENDING_CANNOT_ADD_HISTORY("PRODUCT-APPROVAL-MASTER-STATUS-PENDING-CANNOT-ADD-HISTORY","Cannot add approval history to an approval master with PENDING status:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_STATUS_PENDING_NEED_APPROVED("PRODUCT-APPROVAL-MASTER-STATUS-PENDING-NEED-APPROVED","Cannot operate with approval history with PENDING status, please wait for approval",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_STATUS_ADJUSTMENT_NEED_APPROVED("PRODUCT-APPROVAL-MASTER-STATUS-ADJUSTMENT-NEED-APPROVED","Cannot operate with approval history with ADJUSTMENT status, please wait for approval",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_STATUS_APPROVED_CANNOT_ADD_HISTORY("PRODUCT-APPROVAL-MASTER-STATUS-APPROVED-CANNOT-ADD-HISTORY","Cannot add approval history to an approval master with APPROVED status:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_STATUS_NEED_ADJUSTMENT_CANNOT_ADD_HISTORY("PRODUCT-APPROVAL-MASTER-STATUS-NEED-ADJUSTMENT-CANNOT-ADD-HISTORY","Cannot add approval history to an approval master with NEED ADJUSTMENT status:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_STATUS_ADJUSTMENT_CANNOT_ADD_HISTORY("PRODUCT-APPROVAL-MASTER-STATUS-ADJUSTMENT-CANNOT-ADD-HISTORY","Cannot add approval history to an approval master with ADJUSTMENT status:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_DATA_STATUS_FINISHED_ADJUSTMENT_CANNOT_ADD_HISTORY("PRODUCT-APPROVAL-MASTER-STATUS-FINISHED-ADJUSTMENT-CANNOT-ADD-HISTORY","Cannot add approval history to an approval master with FINISHED ADJUSTMENT status:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY_TYPE_STATUS("PRODUCT-APPROVAL-MASTER-NOT-FOUND-ENTITY-TYPE-STATUS","Not found approval master with EntityType and Status:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY_STATUS("PRODUCT-APPROVAL-MASTER-NOT-FOUND-ENTITY-STATUS","Not found approval master with EntityType and Status:",HttpStatus.CONFLICT),
+
+    //----------------ApprovalHistory-------------------
+    PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID("PRODUCT-APPROVAL-HISTORY-NOT-FOUND-ID","Not found approval history with id:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_LAST_SHOP_MANAGEMENT("PRODUCT-APPROVAL-HISTORY-NOT-FOUND-LAST-SHOP-MANAGEMENT","The Shop management does not have an approval history, please submit it with PENDING status.",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_HISTORY_CURRENT_ERR_MATCHING("PRODUCT-APPROVAL-HISTORY-CURRENT-ERR-MATCHING","Last approval history not matching with current approval history", HttpStatus.CONFLICT),
+
 
     //----------------Server-------------------
     PRODUCT_INTERNAL_ERROR_CALL_API("PRODUCT-INTERNAL-ERROR-CALL-API", "Call Identity Service api error", HttpStatus.INTERNAL_SERVER_ERROR),

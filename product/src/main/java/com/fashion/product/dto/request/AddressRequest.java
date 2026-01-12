@@ -43,16 +43,16 @@ public class AddressRequest {
         // @NotNull(message = "", groups = Update.class)
         UUID id;
 
-        @NotBlank(message = "address.address.notNull", groups = {Create.class, Update.class})
+        @NotBlank(message = "address.address.notNull", groups = {ShopManagementRequest.Create.class, ShopManagementRequest.Update.class})
         String address;
 
-        @NotBlank(message = "address.province.notNull", groups = {Create.class, Update.class})
+        @NotBlank(message = "address.province.notNull", groups = {ShopManagementRequest.Create.class, ShopManagementRequest.Update.class})
         String province;
 
-        @NotBlank(message = "address.district.notNull", groups = {Create.class, Update.class})
+        @NotBlank(message = "address.district.notNull", groups = {ShopManagementRequest.Create.class, ShopManagementRequest.Update.class})
         String district;
 
-        @NotBlank(message = "address.ward.notNull", groups = {Create.class, Update.class})
+        @NotBlank(message = "address.ward.notNull", groups = {ShopManagementRequest.Create.class, ShopManagementRequest.Update.class})
         String ward;
     }
 }

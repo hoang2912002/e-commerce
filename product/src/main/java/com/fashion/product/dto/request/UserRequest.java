@@ -10,6 +10,8 @@ import com.fashion.product.dto.request.RoleRequest.InnerRoleRequest;
 
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,6 +47,14 @@ public class UserRequest {
     @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InnerUserRequest {
+        @NotNull(message = "user.id.notNull", 
+            groups = {
+                ShopManagementRequest.Create.class, 
+                ShopManagementRequest.Update.class,
+                ApprovalMasterRequest.Create.class, 
+                ApprovalMasterRequest.Update.class
+            }
+        )
         UUID id;
     } 
 }
