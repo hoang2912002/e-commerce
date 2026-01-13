@@ -13,14 +13,13 @@ import com.fashion.product.entity.ShopManagement;
 public interface ApprovalHistoryService {
     ApprovalHistoryResponse createApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType);
     ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType);
-    ApprovalHistoryResponse getApprovalHistoryById(UUID id);
+    ApprovalHistoryResponse getApprovalHistoryById(Long id);
     PaginationResponse<List<ApprovalHistoryResponse>> getAllApprovalHistories(SearchRequest request);
-    void deleteApprovalHistory(UUID id);
+    void deleteApprovalHistory(Long id);
     void handleApprovalHistoryUpSertProduct(
         Product product, UUID productId, // Đây là id để kiểm tra tạo mới hay cập nhật
         String entityType
     );
-    ApprovalHistory lockAndGetApprovalHistory(UUID id);
     boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval);
     boolean checkApprovalHistoryForUpSertOrder(Product product);
 }

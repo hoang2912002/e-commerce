@@ -14,6 +14,7 @@ public enum EnumError {
 
     //----------------Auth-------------------
     PRODUCT_USER_INVALID_REFRESH_TOKEN("PRODUCT-USER-INVALID-REFRESH-TOKEN","User already with invalid Refresh token:",HttpStatus.BAD_REQUEST),
+    PRODUCT_USER_INVALID_ACCESS_TOKEN("PRODUCT-USER-INVALID-ACCESS-TOKEN","User already with invalid Access token:",HttpStatus.BAD_REQUEST),
     
     //----------------Category-------------------
     PRODUCT_CATEGORY_DATA_EXISTED_ID("PRODUCT-CATEGORY-DATA-EXISTED-ID","Category already exists with the given Id:",HttpStatus.CONFLICT),
@@ -68,8 +69,8 @@ public enum EnumError {
     //----------------ApprovalHistory-------------------
     PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID("PRODUCT-APPROVAL-HISTORY-NOT-FOUND-ID","Not found approval history with id:",HttpStatus.CONFLICT),
     PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_LAST_SHOP_MANAGEMENT("PRODUCT-APPROVAL-HISTORY-NOT-FOUND-LAST-SHOP-MANAGEMENT","The Shop management does not have an approval history, please submit it with PENDING status.",HttpStatus.CONFLICT),
-    PRODUCT_APPROVAL_HISTORY_CURRENT_ERR_MATCHING("PRODUCT-APPROVAL-HISTORY-CURRENT-ERR-MATCHING","Last approval history not matching with current approval history", HttpStatus.CONFLICT),
-
+    PRODUCT_APPROVAL_HISTORY_CURRENT_NOT_LATEST("PRODUCT-APPROVAL-HISTORY-CURRENT-NOT-LATEST","The approval history is not the latest.", HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_HISTORY_STATUS_CANNOT_BE_CHANGED("PRODUCT-APPROVAL-HISTORY-STATUS-CANNOT-BE-CHANGED", "It is not possible to change the approval status in the approval history.", HttpStatus.BAD_REQUEST),
 
     //----------------Server-------------------
     PRODUCT_INTERNAL_ERROR_CALL_API("PRODUCT-INTERNAL-ERROR-CALL-API", "Call Identity Service api error", HttpStatus.INTERNAL_SERVER_ERROR),

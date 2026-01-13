@@ -10,18 +10,29 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.product.common.enums.ApprovalMasterEnum;
 import com.fashion.product.common.enums.EnumError;
 import com.fashion.product.common.util.AsyncUtils;
+import com.fashion.product.common.util.ConvertUuidUtil;
 import com.fashion.product.common.util.FormatTime;
+import com.fashion.product.common.util.PageableUtils;
+import com.fashion.product.common.util.SpecificationUtils;
+import com.fashion.product.dto.request.search.SearchModel;
+import com.fashion.product.dto.request.search.SearchOption;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.ApprovalHistoryResponse;
+import com.fashion.product.dto.response.ApprovalMasterResponse;
 import com.fashion.product.dto.response.PaginationResponse;
 import com.fashion.product.dto.response.RoleResponse;
 import com.fashion.product.dto.response.UserResponse;
+import com.fashion.product.dto.response.UserResponse.UserInsideToken;
 import com.fashion.product.entity.ApprovalHistory;
 import com.fashion.product.entity.ApprovalMaster;
 import com.fashion.product.entity.Product;
@@ -35,6 +46,7 @@ import com.fashion.product.repository.ProductRepository;
 import com.fashion.product.repository.ShopManagementRepository;
 import com.fashion.product.security.SecurityUtils;
 import com.fashion.product.service.ApprovalHistoryService;
+import com.fashion.product.service.provider.ApprovalHistoryErrorProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -43,7 +55,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE)
+@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     ApprovalHistoryRepository approvalHistoryRepository;
     ApprovalMasterRepository approvalMasterRepository;
@@ -51,23 +63,20 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     IdentityClient identityClient;
     ProductRepository productRepository;
     ShopManagementRepository shopManagementRepository;
+    ApprovalHistoryErrorProvider PRODUCT_ERROR_PROVIDER;
 
     public final static String ENTITY_TYPE_PRODUCT = "PRODUCT";
     public final static String ENTITY_TYPE_INVENTORY = "INVENTORY";
     public final static String ENTITY_TYPE_SHOP_MANAGEMENT = "SHOP_MANAGEMENT";
-
     @Override
     @Transactional(rollbackFor = ServiceException.class)
     public ApprovalHistoryResponse createApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType) {
         log.info("PRODUCT-SERVICE: [createApprovalHistory] Start create approval history");
         try {
-            Optional<UUID> optionalId = SecurityUtils.getCurrentUserId();
-            CompletableFuture<UserResponse> userFuture = (optionalId.isPresent())
-                ? AsyncUtils.fetchAsync(() -> identityClient.getUserById(optionalId.get()))
-                : CompletableFuture.completedFuture(null);
-
-            CompletableFuture.allOf(userFuture).join();
-            UserResponse userRes = userFuture.join();
+            UserInsideToken user = SecurityUtils.getCurrentUserId().orElseThrow(
+                () -> new ServiceException(EnumError.PRODUCT_USER_INVALID_ACCESS_TOKEN,"auth.accessToken.invalid")
+            );
+            UserResponse userRes = identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData();
 
             ApprovalMaster approvalMaster = getApprovalMaster(approvalHistory, entityType);
 
@@ -84,7 +93,17 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                 approvalMaster.getStatus().toString(),
                 FormatTime.StringDateLocalDateTime(approvedAt)
             ));
-            return null;
+            approvalHistory.setApprovedAt(approvedAt);
+            approvalHistory.setApprovalMaster(approvalMaster);
+            approvalHistory.setActivated(true);
+            ApprovalHistory saved = approvalHistoryRepository.save(approvalHistory);
+
+            if(validatedEntity instanceof Product product && approvalMaster.getStatus().equals(ApprovalMasterEnum.APPROVED)
+            ){
+                // Tạo tồn kho cho sản phẩm
+                // this.productSkuService.validateAndMapSkusToInventoryRequests(product);
+            }
+            return approvalHistoryMapper.toDto(saved);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -94,26 +113,101 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     }
 
     @Override
-    public ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory,
-            boolean skipCheckPeriodDataExist, String entityType) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'updateApprovalHistory'");
+    @Transactional(rollbackFor = ServiceException.class)
+    public ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType) {
+        log.info("PRODUCT-SERVICE: [updateApprovalHistory] Start update approval history");
+        try {
+            UserInsideToken user = SecurityUtils.getCurrentUserId().orElseThrow(
+                () -> new ServiceException(EnumError.PRODUCT_USER_INVALID_ACCESS_TOKEN,"auth.accessToken.invalid")
+            );
+            UserResponse userRes = identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData();
+
+            ApprovalHistory uApprovalHistory = this.approvalHistoryRepository.lockApprovalHistoryById(approvalHistory.getId()).orElseThrow(
+                () -> new ServiceException(
+                    EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID,
+                    "approval.history.not.found.id",
+                    Map.of("id", approvalHistory.getId())
+                )
+            );
+
+            ApprovalMaster approvalMaster = getApprovalMaster(approvalHistory, entityType);
+            this.validateUserPermission(userRes, approvalMaster);
+            if (!skipCheckPeriodDataExist) {
+                handleApprovalBusinessRules(approvalHistory, approvalMaster, uApprovalHistory);
+            }
+            LocalDateTime approvedAt = LocalDateTime.now();
+            String note = !approvalHistory.getNote().isBlank() ? approvalHistory.getNote().toLowerCase() : "create existing approval request";
+            approvalHistory.setNote(String.format("Update %s - %s with status %s at: %s",
+                entityType.toLowerCase(),
+                note,
+                approvalMaster.getStatus().toString(),
+                FormatTime.StringDateLocalDateTime(approvedAt)
+            ));
+            approvalHistory.setApprovedAt(approvedAt);
+            approvalHistory.setActivated(true);
+            ApprovalHistory saved = approvalHistoryRepository.save(approvalHistory);
+            return approvalHistoryMapper.toDto(saved);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [updateApprovalHistory] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
-    public ApprovalHistoryResponse getApprovalHistoryById(UUID id) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getApprovalHistoryById'");
+    @Transactional(readOnly = true)
+    public ApprovalHistoryResponse getApprovalHistoryById(Long id) {
+        try {
+            ApprovalHistory approvalHistory = this.approvalHistoryRepository.findById(id).orElseThrow(
+                () -> new ServiceException(
+                    EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID,
+                    "approval.history.not.found.id",
+                    Map.of("id", id)
+                )
+            );
+            return approvalHistoryMapper.toDto(approvalHistory);
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [getApprovalHistoryById] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
     public PaginationResponse<List<ApprovalHistoryResponse>> getAllApprovalHistories(SearchRequest request) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getAllApprovalHistories'");
+        try {
+            SearchOption searchOption = request.getSearchOption();
+            SearchModel searchModel = request.getSearchModel();
+
+            List<String> allowedField = List.of("createdAt");
+
+            PageRequest pageRequest = PageableUtils.buildPageRequest(
+                searchOption.getPage(), 
+                searchOption.getSize(), 
+                searchOption.getSort(), 
+                allowedField, 
+                "createdAt", 
+                Sort.Direction.DESC
+            );
+            List<String> fields = SpecificationUtils.getFieldsSearch(ApprovalHistory.class);
+            Specification<ApprovalHistory> spec = new SpecificationUtils<ApprovalHistory>()
+                .equal("activated", searchModel.getActivated())
+                .likeAnyFieldIgnoreCase(searchModel.getQ(), fields)
+                .build();
+
+            Page<ApprovalHistory> approvalHistories = this.approvalHistoryRepository.findAll(spec, pageRequest);
+            List<ApprovalHistoryResponse> approvalHistoryResponses = this.approvalHistoryMapper.toDto(approvalHistories.getContent());
+            return PageableUtils.<ApprovalHistory, ApprovalHistoryResponse>buildPaginationResponse(pageRequest, approvalHistories, approvalHistoryResponses);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [getAllApprovalMaster] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
-    public void deleteApprovalHistory(UUID id) {
+    public void deleteApprovalHistory(Long id) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'deleteApprovalHistory'");
     }
@@ -122,12 +216,6 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     public void handleApprovalHistoryUpSertProduct(Product product, UUID productId, String entityType) {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'handleApprovalHistoryUpSertProduct'");
-    }
-
-    @Override
-    public ApprovalHistory lockAndGetApprovalHistory(UUID id) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'lockAndGetApprovalHistory'");
     }
 
     @Override
@@ -185,7 +273,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     }
 
     private void validateUserPermission(UserResponse user, ApprovalMaster approvalMaster) {
-        if (user.getRole().getId() == approvalMaster.getRoleId()) {
+        if (user.getRole().getId() != approvalMaster.getRoleId()) {
             throw new ServiceException(
                     EnumError.PRODUCT_PERMISSION_ACCESS_DENIED,
                     "permission.access.deny"
@@ -206,10 +294,20 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             ApprovalHistory last = historyList.isEmpty() ? null : historyList.getLast();
             // Update ko callback
             if(approvalHistoryDB != null){
-                if(last == null || last.getId() == approvalHistoryDB.getId()){
+
+                // Kiểm tra Status bị thay đổi khi Update
+                if (!approvalHistoryDB.getApprovalMaster().getStatus().equals(master.getStatus())) {
                     throw new ServiceException(
-                        EnumError.PRODUCT_APPROVAL_HISTORY_CURRENT_ERR_MATCHING,
-                        "approval.history.last.current.not.matching"
+                        EnumError.PRODUCT_APPROVAL_HISTORY_STATUS_CANNOT_BE_CHANGED, // Tạo mã lỗi mới
+                        "approval.history.status.readonly"
+                    );
+                }
+
+                if(last == null || last.getId() != approvalHistoryDB.getId()){
+                    throw new ServiceException(
+                        EnumError.PRODUCT_APPROVAL_HISTORY_CURRENT_NOT_LATEST,
+                        "approval.history.not.latest",
+                        Map.of("id", requestId)
                     );
                 }
                 return null;
@@ -237,7 +335,13 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
         UUID requestId
     ){
         try {
-            Product product = productRepository.findById(requestId).orElseGet(null);
+            Product product = productRepository.findById(requestId).orElseThrow(
+                () -> new ServiceException(
+                        EnumError.PRODUCT_PRODUCT_ERR_NOT_FOUND_ID,
+                        "product.not.found.id",
+                        Map.of("id", requestId)
+                )
+            );
     
             if (product == null) {
                 throw new ServiceException(
@@ -246,7 +350,8 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                         Map.of("id", requestId)
                 );
             }
-    
+            ApprovalMasterEnum currentStatus = (approvalHistory == null) ? ApprovalMasterEnum.PENDING : approvalHistory.getApprovalMaster().getStatus();
+            Map<String, Object> errorParams = Map.of("name", product.getName());
             if (approvalHistory == null) {
                 if (!status.equals(ApprovalMasterEnum.PENDING)) {
                     throw new ServiceException(
@@ -255,69 +360,9 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                         Map.of("name", product.getName())
                     );
                 }
-                return product; // ok
-            }
-    
-            ApprovalMasterEnum lastStatus = approvalHistory.getApprovalMaster().getStatus();            
-            switch (lastStatus) {
-                case PENDING -> {
-                    if (status != ApprovalMasterEnum.APPROVED) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING,
-                            "product.data.existed.approval.pending",
-                            Map.of("name", product.getName())
-                        );
-                    }
-                }
-                case APPROVED -> {
-                    if (status != ApprovalMasterEnum.NEEDS_ADJUSTMENT) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_PRODUCT_DATA_EXISTED_NAME,
-                            "approval.history.last.approved.current.not.needsAdjustment",
-                            Map.of("name", product.getName())
-                        );
-                    }
-                }
-                case REJECTED -> {
-                    if (status != ApprovalMasterEnum.NEEDS_ADJUSTMENT) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_REJECTED_CANNOT_ADD_HISTORY,
-                            "approval.history.last.rejected.current.not.needsAdjustment",
-                            Map.of("name", product.getName())
-                        );
-                    }
-                }
-                case NEEDS_ADJUSTMENT -> {
-                    if (status != ApprovalMasterEnum.ADJUSTMENT) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_REJECTED_CANNOT_ADD_HISTORY,
-                            "approval.history.last.needsAdjustment.current.not.adjustment",
-                            Map.of("name", product.getName())
-                        );
-                    }
-                }
-                case ADJUSTMENT -> {
-                    if (status != ApprovalMasterEnum.FINISHED_ADJUSTMENT) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_REJECTED_CANNOT_ADD_HISTORY,
-                            "approval.history.last.adjustment.current.not.finishedAdjustment",
-                            Map.of("name", product.getName())
-                        );
-                    }
-                }
-                case FINISHED_ADJUSTMENT -> {
-                    if (status != ApprovalMasterEnum.APPROVED) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_REJECTED_CANNOT_ADD_HISTORY,
-                            "approval.history.last.finishedAdjustment.current.not.approved",
-                            Map.of("name", product.getName())
-                        );
-                    }
-                }
-                default -> throw new ServiceException(
-                    EnumError.PRODUCT_INTERNAL_ERROR_CALL_API,
-                    "approval.history.status.invalid.flow"
-                );
+            } else {
+                currentStatus.validateTransition(status, PRODUCT_ERROR_PROVIDER, errorParams);
+
             }
             return product;
         } catch (ServiceException e) {
@@ -334,21 +379,20 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
 
     private ShopManagement handleShopManagementApproval(
         ApprovalMasterEnum status,
-        ApprovalHistory lastHistory,
+        ApprovalHistory approvalHistory,
         UUID shopManagementId
     ){
         try {
-            ShopManagement shopManagement = this.shopManagementRepository.findById(shopManagementId).orElseGet(null);
-        
-            if (shopManagement == null) {
-                throw new ServiceException(
+            ShopManagement shopManagement = this.shopManagementRepository.findById(shopManagementId).orElseThrow(
+                () -> new ServiceException(
                         EnumError.PRODUCT_SHOP_MANAGEMENT_ERR_NOT_FOUND_ID,
                         "shop.management.not.found.id",
                         Map.of("id", shopManagementId)
-                );
-            }
-        
-            if (lastHistory == null) {
+                )
+            );
+            ApprovalMasterEnum currentStatus = (approvalHistory == null) ? ApprovalMasterEnum.PENDING : approvalHistory.getApprovalMaster().getStatus();
+            Map<String, Object> errorParams = Map.of("name", shopManagement.getName());
+            if (approvalHistory == null) {
                 if (!status.equals(ApprovalMasterEnum.PENDING)) {
                     throw new ServiceException(
                             EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_REJECTED_CANNOT_ADD_HISTORY,
@@ -356,69 +400,9 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                             Map.of("name", shopManagement.getName())
                     );
                 }
-                return shopManagement; // ok
-            }
-            
-            ApprovalMasterEnum lastStatus = lastHistory.getApprovalMaster().getStatus();            
-            switch (lastStatus) {
-                case PENDING -> {
-                    if (status != ApprovalMasterEnum.APPROVED) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_PENDING_CANNOT_ADD_HISTORY,
-                            "product.data.existed.approval.pending",
-                            Map.of("name", shopManagement.getName())
-                        );
-                    }
-                }
-                case APPROVED -> {
-                    if (status != ApprovalMasterEnum.NEEDS_ADJUSTMENT) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_APPROVED_CANNOT_ADD_HISTORY,
-                            "approval.history.last.approved.current.not.needsAdjustment",
-                            Map.of("name", shopManagement.getName())
-                        );
-                    }
-                }
-                case REJECTED -> {
-                    if (status != ApprovalMasterEnum.NEEDS_ADJUSTMENT) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_REJECTED_CANNOT_ADD_HISTORY,
-                            "approval.history.last.rejected.current.not.needsAdjustment",
-                            Map.of("name", shopManagement.getName())
-                        );
-                    }
-                }
-                case NEEDS_ADJUSTMENT -> {
-                    if (status != ApprovalMasterEnum.ADJUSTMENT) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_NEED_ADJUSTMENT_CANNOT_ADD_HISTORY,
-                            "approval.history.last.needsAdjustment.current.not.adjustment",
-                            Map.of("name", shopManagement.getName())
-                        );
-                    }
-                }
-                case ADJUSTMENT -> {
-                    if (status != ApprovalMasterEnum.FINISHED_ADJUSTMENT) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_ADJUSTMENT_CANNOT_ADD_HISTORY,
-                            "approval.history.last.adjustment.current.not.finishedAdjustment",
-                            Map.of("name", shopManagement.getName())
-                        );
-                    }
-                }
-                case FINISHED_ADJUSTMENT -> {
-                    if (status != ApprovalMasterEnum.APPROVED) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_APPROVAL_MASTER_DATA_STATUS_FINISHED_ADJUSTMENT_CANNOT_ADD_HISTORY,
-                            "approval.history.last.finishedAdjustment.current.not.approved",
-                            Map.of("name", shopManagement.getName())
-                        );
-                    }
-                }
-                default -> throw new ServiceException(
-                    EnumError.PRODUCT_INTERNAL_ERROR_CALL_API,
-                    "approval.history.status.invalid.flow"
-                );
+            } else {
+                currentStatus.validateTransition(status, PRODUCT_ERROR_PROVIDER, errorParams);
+
             }
             return shopManagement;
         } catch (ServiceException e) {

@@ -19,6 +19,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.stereotype.Component;
 
 import com.fashion.product.common.enums.EnumError;
+import com.fashion.product.dto.response.UserResponse.UserInsideToken;
 import com.fashion.product.exception.ServiceException;
 import com.nimbusds.jose.util.Base64;
 
@@ -54,12 +55,21 @@ public class SecurityUtils {
             .map(authentication -> (String) authentication.getCredentials());
     }
 
-    public static Optional<UUID> getCurrentUserId() {
+    public static Optional<UserInsideToken> getCurrentUserId() {
         SecurityContext securityContext = SecurityContextHolder.getContext();
         return Optional.ofNullable(securityContext.getAuthentication())
             .filter(authentication -> authentication.getPrincipal() instanceof ClaimAccessor)
             .map(authentication -> (ClaimAccessor) authentication.getPrincipal())
-            .map(principal -> principal.getClaim("user"));
+            .map(principal -> {
+                Map<String, Object> userMap = principal.getClaim("user");
+                if (userMap == null) return null;
+
+                UserInsideToken user = new UserInsideToken();
+                user.setId(UUID.fromString(userMap.get("id").toString()));
+                user.setFullName(userMap.get("fullName").toString());
+                user.setUserName(userMap.get("userName").toString());
+                return user;
+            });
     }
 
     public Jwt getUserFromJWTToken(String token) {

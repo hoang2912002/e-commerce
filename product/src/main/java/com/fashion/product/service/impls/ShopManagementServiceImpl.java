@@ -1,6 +1,7 @@
 package com.fashion.product.service.impls;
 
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,7 @@ import com.fashion.product.dto.response.AddressResponse.InnerAddressResponse;
 import com.fashion.product.dto.response.ApprovalMasterResponse;
 import com.fashion.product.dto.response.UserResponse.InnerUserResponse;
 import com.fashion.product.dto.response.kafka.ShopManagementAddressEvent;
+import com.fashion.product.entity.ApprovalHistory;
 import com.fashion.product.entity.ApprovalMaster;
 import com.fashion.product.entity.Promotion;
 import com.fashion.product.entity.ShopManagement;
@@ -48,6 +50,7 @@ import com.fashion.product.intergration.IdentityClient;
 import com.fashion.product.mapper.ShopManagementMapper;
 import com.fashion.product.messaging.provider.ProductServiceProvider;
 import com.fashion.product.repository.ShopManagementRepository;
+import com.fashion.product.service.ApprovalHistoryService;
 import com.fashion.product.service.KafkaService;
 import com.fashion.product.service.ShopManagementService;
 
@@ -64,7 +67,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
     final ShopManagementRepository shopManagementRepository;
     final ShopManagementMapper shopManagementMapper;
     final ProductServiceProvider productServiceProvider;
-    
+    final ApprovalHistoryService approvalHistoryService;
     @Value("${role.admin}")
     String roleAmin;
     
@@ -110,7 +113,16 @@ public class ShopManagementServiceImpl implements ShopManagementService{
             ShopManagement smCreate = this.shopManagementRepository.saveAndFlush(shopManagement);
 
             // Create approval history
-
+            this.approvalHistoryService.createApprovalHistory(
+                ApprovalHistory.builder()
+                .approvedAt(LocalDateTime.now())
+                .approvalMaster(new ApprovalMaster())
+                .requestId(smCreate.getId())
+                .note("")
+                .build(), 
+                true, 
+                ApprovalHistoryServiceImpl.ENTITY_TYPE_SHOP_MANAGEMENT
+            ); 
             // Send kafka 
             ShopManagementAddressEvent addressEvent = ShopManagementAddressEvent.builder()
                 .id(null)

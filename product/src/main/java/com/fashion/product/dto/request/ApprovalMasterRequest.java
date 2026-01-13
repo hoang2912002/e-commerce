@@ -59,6 +59,7 @@ public class ApprovalMasterRequest {
     @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InnerApprovalMasterRequest {
+        @NotNull(message = "approval.history.approvalMaster.notNull", groups = {ApprovalHistoryRequest.Create.class, ApprovalHistoryRequest.Update.class})
         UUID id;
     }
 }

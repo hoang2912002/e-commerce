@@ -55,4 +55,15 @@ public class UserResponse {
         String avatar;
         InnerRoleResponse role;
     }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class UserInsideToken {
+        UUID id;
+        String fullName;
+        String userName;
+    }
 }

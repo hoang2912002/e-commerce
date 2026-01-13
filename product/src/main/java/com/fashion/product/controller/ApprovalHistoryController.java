@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -39,7 +40,7 @@ public class ApprovalHistoryController {
     @PostMapping("")
     @ApiMessageResponse("approval.history.success.create")
     public ResponseEntity<ApprovalHistoryResponse> createApprovalHistory(
-        @RequestBody @Valid ApprovalHistoryRequest approvalHistoryRequest
+        @RequestBody @Validated(ApprovalHistoryRequest.Create.class) ApprovalHistoryRequest approvalHistoryRequest
     ) {
         return ResponseEntity.status(HttpStatus.CREATED).body(this.approvalHistoryService.createApprovalHistory(
             approvalHistoryMapper.toValidated(approvalHistoryRequest), 
@@ -51,7 +52,7 @@ public class ApprovalHistoryController {
     @PutMapping("")
     @ApiMessageResponse("approval.history.success.update")
     public ResponseEntity<ApprovalHistoryResponse> updateApprovalHistory(
-        @RequestBody @Valid ApprovalHistoryRequest approvalHistoryRequest
+        @RequestBody @Validated(ApprovalHistoryRequest.Update.class) ApprovalHistoryRequest approvalHistoryRequest
     ) {
         return ResponseEntity.status(HttpStatus.OK).body(this.approvalHistoryService.updateApprovalHistory(
             approvalHistoryMapper.toValidated(approvalHistoryRequest), 
@@ -63,7 +64,7 @@ public class ApprovalHistoryController {
     @GetMapping("/{id}")
     @ApiMessageResponse("approval.history.success.get.single")
     public ResponseEntity<ApprovalHistoryResponse> getApprovalHistoryById(
-        @PathVariable("id") UUID id    
+        @PathVariable("id") Long id    
     ) {
         return ResponseEntity.ok(this.approvalHistoryService.getApprovalHistoryById(id));
     }

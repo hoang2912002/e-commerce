@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.fashion.product.common.annotation.Searchable;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.ConstraintMode;
 import jakarta.persistence.Entity;
@@ -42,6 +44,7 @@ public class ApprovalHistory extends AbstractAuditingEntity<Long>{
     @Column(name = "request_id", nullable = false)
     UUID requestId;
 
+    @Searchable
     @Column(name = "note", columnDefinition = "TEXT")
     String note;
 
