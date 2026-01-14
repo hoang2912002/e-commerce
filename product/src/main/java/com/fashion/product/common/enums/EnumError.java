@@ -20,6 +20,7 @@ public enum EnumError {
     PRODUCT_CATEGORY_DATA_EXISTED_ID("PRODUCT-CATEGORY-DATA-EXISTED-ID","Category already exists with the given Id:",HttpStatus.CONFLICT),
     PRODUCT_CATEGORY_DATA_EXISTED_SLUG("PRODUCT-CATEGORY-DATA-EXISTED-SLUG","Category already exists with the given Slug:",HttpStatus.CONFLICT),
     PRODUCT_CATEGORY_ERR_NOT_FOUND_ID("PRODUCT-CATEGORY-NOT-FOUND-ID","Not found category with id:",HttpStatus.BAD_REQUEST),
+    PRODUCT_CATEGORY_INVALID_ID("PRODUCT-CATEGORY-INVALID-ID","Category already with invalid id:",HttpStatus.CONFLICT),
 
     //----------------Option-------------------
     PRODUCT_OPTION_DATA_EXISTED_NAME("PRODUCT-OPTION-DATA-EXISTED-NAME","Option already exists with the given Name:",HttpStatus.CONFLICT),
@@ -37,8 +38,14 @@ public enum EnumError {
     //----------------Product-------------------
     PRODUCT_PRODUCT_DATA_EXISTED_NAME("PRODUCT-PRODUCT-DATA-EXISTED-NAME","Product already exists with the given Name:",HttpStatus.CONFLICT),
     PRODUCT_PRODUCT_ERR_NOT_FOUND_ID("PRODUCT-PRODUCT-NOT-FOUND-ID","Not found product with id:",HttpStatus.BAD_REQUEST),
-    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING("PRODUCT-PRODUCT-DTE-APPROVAL-PENDING","Product already exists with the pending approval request:",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING("PRODUCT-PRODUCT-DTE-APPROVAL-PENDING","Product already exists with the pending approval history request:",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_APPROVED("PRODUCT-PRODUCT-DTE-APPROVAL-APPROVED","Product already exists with the approved approval history request:",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_REJECTED("PRODUCT-PRODUCT-DTE-APPROVAL-REJECTED","Product already exists with the rejected approval history request:",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_NEEDS_ADJUSTMENT("PRODUCT-PRODUCT-DTE-APPROVAL-NEEDS-ADJUSTMENT","Product already exists with the need adjustment approval history request:",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_ADJUSTMENT("PRODUCT-PRODUCT-DTE-APPROVAL-ADJUSTMENT","Product already exists with the adjustment approval history request:",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_FINISHED_ADJUSTMENT("PRODUCT-PRODUCT-DTE-APPROVAL-FINISHED-ADJUSTMENT","Product already exists with the finished adjustment approval history request:",HttpStatus.CONFLICT),
     PRODUCT_PRODUCT_ERR_NOT_FOUND_SHOP_MANAGEMENT("PRODUCT-PRODUCT-NOT-FOUND-SHOP-MANAGEMENT","The user managing this shop management has no product",HttpStatus.CONFLICT),
+    PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING_ADJUSTMENT("PRODUCT-PRODUCT-DTE-APPROVAL-PENDING-ADJUSTMENT-CANNOT-UPDATE","Product already exists with the adjustment pending/approval history.",HttpStatus.CONFLICT),
 
     //----------------ShopManagement-------------------
     PRODUCT_SHOP_MANAGEMENT_DATA_EXISTED_NAME("PRODUCT-SHOP-MANAGEMENT-DATA-EXISTED-NAME","Shop management already exists with Name", HttpStatus.CONFLICT),
@@ -65,6 +72,7 @@ public enum EnumError {
     PRODUCT_APPROVAL_MASTER_DATA_STATUS_FINISHED_ADJUSTMENT_CANNOT_ADD_HISTORY("PRODUCT-APPROVAL-MASTER-STATUS-FINISHED-ADJUSTMENT-CANNOT-ADD-HISTORY","Cannot add approval history to an approval master with FINISHED ADJUSTMENT status:",HttpStatus.CONFLICT),
     PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY_TYPE_STATUS("PRODUCT-APPROVAL-MASTER-NOT-FOUND-ENTITY-TYPE-STATUS","Not found approval master with EntityType and Status:",HttpStatus.CONFLICT),
     PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY_STATUS("PRODUCT-APPROVAL-MASTER-NOT-FOUND-ENTITY-STATUS","Not found approval master with EntityType and Status:",HttpStatus.CONFLICT),
+    PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY("PRODUCT-APPROVAL-MASTER-NOT-FOUND-ENTITY","Not found approval master with EntityType:",HttpStatus.CONFLICT),
 
     //----------------ApprovalHistory-------------------
     PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID("PRODUCT-APPROVAL-HISTORY-NOT-FOUND-ID","Not found approval history with id:",HttpStatus.CONFLICT),

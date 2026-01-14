@@ -6,7 +6,7 @@ import com.fashion.product.common.enums.ApprovalMasterEnum;
 import com.fashion.product.common.enums.EnumError;
 import com.fashion.product.common.provider.ApprovalErrorProvider;
 @Component
-public class ApprovalHistoryErrorProvider implements ApprovalErrorProvider{
+public class ApprovalHistoryUpSertErrorProvider implements ApprovalErrorProvider{
     @Override
     public EnumError getError(ApprovalMasterEnum status) {
         return switch(status) {

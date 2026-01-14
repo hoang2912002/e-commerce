@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,7 +42,12 @@ public class CategoryRequest {
     @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InnerCategoryRequest {
-        @NotBlank(message = "category.id.notNull", groups = { Update.class, Create.class })
+        @NotNull(message = "category.id.notNull", groups = { 
+            Update.class, 
+            Create.class,
+            ProductRequest.Create.class,
+            ProductRequest.Update.class,
+        })
         UUID id;
     }
 }

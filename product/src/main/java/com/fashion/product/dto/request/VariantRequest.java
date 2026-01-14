@@ -1,5 +1,6 @@
 package com.fashion.product.dto.request;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -11,6 +12,8 @@ import com.fashion.product.dto.request.ProductSkuRequest.InnerProductSkuRequest;
 import com.fashion.product.entity.OptionValue;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -41,9 +44,25 @@ public class VariantRequest {
     @NoArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InnerVariantRequest {
+        @NotBlank(message = "category.id.notNull", groups = { 
+            ProductRequest.Create.class,
+            ProductRequest.Update.class,
+        })
         String skuId;
+        @NotNull(message = "category.id.notNull", groups = { 
+            ProductRequest.Create.class,
+            ProductRequest.Update.class,
+        })
         List<String> optionValues;
-        Double price;
+        @NotNull(message = "category.id.notNull", groups = { 
+            ProductRequest.Create.class,
+            ProductRequest.Update.class,
+        })
+        BigDecimal price;
+        @NotNull(message = "category.id.notNull", groups = { 
+            ProductRequest.Create.class,
+            ProductRequest.Update.class,
+        })
         Integer stock;
         // String thumbnail;
     }

@@ -36,20 +36,19 @@ public class Variant extends AbstractAuditingEntity<Long>{
     @Column(name = "activated")
     Boolean activated;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_id")
-    Product product;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "product_sku_id")
-    ProductSku productSku;
-   
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "option_id")
-    Option option;
-   
-    
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "option_value_id")
-    OptionValue optionValue;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_sku_id", nullable = false)
+    private ProductSku productSku;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "option_id", nullable = false)
+    private Option option;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "option_value_id", nullable = false)
+    private OptionValue optionValue;
 }

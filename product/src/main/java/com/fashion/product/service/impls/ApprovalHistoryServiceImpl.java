@@ -1,6 +1,8 @@
 package com.fashion.product.service.impls;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,10 +48,12 @@ import com.fashion.product.repository.ProductRepository;
 import com.fashion.product.repository.ShopManagementRepository;
 import com.fashion.product.security.SecurityUtils;
 import com.fashion.product.service.ApprovalHistoryService;
-import com.fashion.product.service.provider.ApprovalHistoryErrorProvider;
+import com.fashion.product.service.provider.ApprovalHistoryProductErrorProvider;
+import com.fashion.product.service.provider.ApprovalHistoryUpSertErrorProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.var;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 @Slf4j
@@ -63,7 +67,8 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     IdentityClient identityClient;
     ProductRepository productRepository;
     ShopManagementRepository shopManagementRepository;
-    ApprovalHistoryErrorProvider PRODUCT_ERROR_PROVIDER;
+    ApprovalHistoryUpSertErrorProvider HISTORY_CREATE_UPDATE_ERROR_PROVIDER;
+    ApprovalHistoryProductErrorProvider HISTORY_PRODUCT_ERROR_PROVIDER;
 
     public final static String ENTITY_TYPE_PRODUCT = "PRODUCT";
     public final static String ENTITY_TYPE_INVENTORY = "INVENTORY";
@@ -213,9 +218,25 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     }
 
     @Override
+    @Transactional(rollbackFor = ServiceException.class)
     public void handleApprovalHistoryUpSertProduct(Product product, UUID productId, String entityType) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'handleApprovalHistoryUpSertProduct'");
+        try {
+            Map<ApprovalMasterEnum, ApprovalMaster> masterMap = this.getApprovalMasterMap(entityType);
+
+            // 2. Tìm lịch sử phê duyệt cuối cùng (Dùng phương thức Repository đã tối ưu LIMIT 1)
+            Optional<ApprovalHistory> lastHistoryOpt = this.approvalHistoryRepository
+                    .findFirstByRequestIdAndApprovalMasterIdInOrderByApprovedAtDesc(product.getId(), 
+                        masterMap.values().stream().map(ApprovalMaster::getId).toList());
+            
+            // 3. Xử lý logic dựa trên trạng thái (State-driven logic)
+            this.processApprovalState(product, productId, lastHistoryOpt, masterMap, entityType);
+
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [handleApprovalHistoryUpSertProduct] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
@@ -261,11 +282,13 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             if (master == null) {
                 throw new ServiceException(
                     EnumError.PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ID,
-                    "approvalMaster.id.notFound"
+                    "approval.master.not.found.id"
                 );
             }
     
             return master;
+        } catch (ServiceException e) {
+            throw e;
         } catch (Exception e) {
             log.error("PRODUCT-SERVICE: [getApprovalMaster] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
@@ -361,7 +384,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                     );
                 }
             } else {
-                currentStatus.validateTransition(status, PRODUCT_ERROR_PROVIDER, errorParams);
+                currentStatus.validateTransition(status, HISTORY_CREATE_UPDATE_ERROR_PROVIDER, errorParams);
 
             }
             return product;
@@ -401,7 +424,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                     );
                 }
             } else {
-                currentStatus.validateTransition(status, PRODUCT_ERROR_PROVIDER, errorParams);
+                currentStatus.validateTransition(status, HISTORY_CREATE_UPDATE_ERROR_PROVIDER, errorParams);
 
             }
             return shopManagement;
@@ -413,5 +436,77 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
         }
     }
 
+    private Map<ApprovalMasterEnum, ApprovalMaster> getApprovalMasterMap(String entityType) {
+        List<ApprovalMaster> masters = approvalMasterRepository.findAllByEntityType(entityType.toUpperCase());
+        if (masters.isEmpty()) {
+            throw new ServiceException(EnumError.PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY, 
+                "approval.master.not.found.entityType", Map.of("entityType", entityType));
+        }
+        return masters.stream().collect(Collectors.toMap(ApprovalMaster::getStatus, Function.identity()));
+    }
 
+    private void processApprovalState(Product product, UUID productId, 
+        Optional<ApprovalHistory> lastHistoryOpt, 
+        Map<ApprovalMasterEnum, ApprovalMaster> masterMap,
+        String entityType
+    ) {
+        try {
+            Map<String, Object> errorParams = Map.of("name", product.getName());
+            ApprovalMaster pendingMaster = masterMap.get(ApprovalMasterEnum.PENDING);
+
+            // Kiểm tra Master Data cơ bản
+            if (pendingMaster == null) {
+                throw new ServiceException(EnumError.PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY_TYPE_STATUS, 
+                    "approval.master.not.found.pending", Map.of("entityType", entityType));
+            }
+
+            // TRƯỜNG HỢP 1: TẠO MỚI (productId == null)
+            if (productId == null) {
+                lastHistoryOpt.ifPresent(h -> h.getApprovalMaster().getStatus()
+                    .validateCreateAbility(HISTORY_PRODUCT_ERROR_PROVIDER, errorParams));
+
+                this.createApprovalHistory(
+                    buildHistory(null, pendingMaster, product.getId(), "Create new approval request"), 
+                    true, entityType);
+                return; 
+            }
+
+            // TRƯỜNG HỢP 2: CẬP NHẬT (productId != null)
+            lastHistoryOpt.ifPresentOrElse(
+                lastHistory -> {
+                    // Đã có history -> Thực hiện Update
+                    ApprovalMasterEnum currentStatus = lastHistory.getApprovalMaster().getStatus();
+                    currentStatus.validateUpdateAbility(product.getId());
+
+                    ApprovalMaster nextMaster = (currentStatus == ApprovalMasterEnum.PENDING) 
+                        ? lastHistory.getApprovalMaster() 
+                        : masterMap.get(ApprovalMasterEnum.FINISHED_ADJUSTMENT);
+
+                    this.updateApprovalHistory(
+                        buildHistory(lastHistory.getId(), nextMaster, product.getId(), "Update existing approval request"), 
+                        true, entityType);
+                },
+                () -> {
+                    this.createApprovalHistory(
+                        buildHistory(null, pendingMaster, product.getId(), "Re-create missing approval request"), 
+                        true, entityType);
+                }
+            );   
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [processApprovalState] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    private ApprovalHistory buildHistory(Long id, ApprovalMaster master, UUID requestId, String note) {
+        return ApprovalHistory.builder()
+            .id(id)
+            .approvalMaster(master)
+            .requestId(requestId)
+            .approvedAt(LocalDateTime.now())
+            .note(note)
+            .build();
+    }
 }

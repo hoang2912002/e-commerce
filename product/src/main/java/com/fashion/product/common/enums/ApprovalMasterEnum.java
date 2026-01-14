@@ -1,6 +1,9 @@
 package com.fashion.product.common.enums;
 
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import com.fashion.product.common.provider.ApprovalErrorProvider;
 import com.fashion.product.exception.ServiceException;
@@ -27,6 +30,30 @@ public enum ApprovalMasterEnum {
                 errorProvider.getError(this),
                 errorProvider.getMessageCode(this),
                 params
+            );
+        }
+    }
+
+    public void validateCreateAbility(ApprovalErrorProvider errorProvider, Map<String, Object> params){
+        Set<ApprovalMasterEnum> listExistMasterEnums = Set.of(ApprovalMasterEnum.values());
+
+        boolean isValid = listExistMasterEnums.contains(this);
+        if (!isValid) {
+            throw new ServiceException(
+                errorProvider.getError(this),
+                errorProvider.getMessageCode(this),
+                params
+            );
+        }
+    }
+
+    public void validateUpdateAbility(UUID requestId) {
+        // Chỉ PENDING và ADJUSTMENT là được phép cập nhật dữ liệu
+        if (this != PENDING && this != ADJUSTMENT) {
+            throw new ServiceException(
+                EnumError.PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING_ADJUSTMENT, 
+                "product.not.update.approval.status.pending.approved",
+                Map.of("ID", requestId)
             );
         }
     }

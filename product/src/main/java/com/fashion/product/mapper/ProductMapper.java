@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.MappingTarget;
 import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
@@ -12,7 +13,11 @@ import com.fashion.product.dto.response.ProductResponse;
 import com.fashion.product.dto.response.ProductResponse.InnerProductResponse;
 import com.fashion.product.entity.Product;
 @Mapper(
-    componentModel = "spring"
+    componentModel = "spring",
+    uses = {
+        CategoryMapper.class,
+        ShopManagementMapper.class
+    }
 )
 public interface ProductMapper extends EntityMapper<ProductResponse,Product, InnerProductResponse, ProductRequest>{
     ProductMapper INSTANCE = Mappers.getMapper(ProductMapper.class);
@@ -35,7 +40,10 @@ public interface ProductMapper extends EntityMapper<ProductResponse,Product, Inn
     List<InnerProductResponse> toInnerEntity(List<Product> entity);
 
     @Named("toValidated")
-    // @Mapping(target = "id", source = "id")
+    @Mapping(target = "variants", ignore = true)
     Product toValidated(ProductRequest dto);
 
+    @Named("toUpdate")
+    @Mapping(target = "variants", ignore = true)
+    Product toUpdate(@MappingTarget Product entity, ProductRequest dto);
 }

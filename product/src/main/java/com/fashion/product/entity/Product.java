@@ -63,7 +63,7 @@ public class Product extends AbstractAuditingEntity<UUID>{
     @OneToMany(mappedBy = "product", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     List<ProductSku> productSkus;
 
-    @OneToMany(mappedBy = "product", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "product", fetch = FetchType.LAZY, orphanRemoval = true)
     List<Variant> variants;
 
     @ManyToOne(fetch = FetchType.LAZY)

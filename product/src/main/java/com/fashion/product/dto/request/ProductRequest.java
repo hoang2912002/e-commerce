@@ -1,10 +1,17 @@
 package com.fashion.product.dto.request;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import com.fashion.product.dto.request.CategoryRequest.InnerCategoryRequest;
+import com.fashion.product.dto.request.ShopManagementRequest.InnerShopManagementRequest;
+import com.fashion.product.dto.request.VariantRequest.InnerVariantRequest;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,17 +25,31 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ProductRequest {
+    public interface Create{};
+    public interface Update{};
+
+    @NotNull(message = "", groups = {Update.class})
     UUID id;
+
+    @NotBlank(message = "", groups = {Create.class, Update.class})
     String name;
-    Double price;
+    
+    @NotNull(message = "", groups = {Create.class, Update.class})
+    BigDecimal price;
     String thumbnail;
-    // Integer quantity;
+
+    Integer quantity;
     
     String description;
+    
+    @Valid
     InnerCategoryRequest category;
-    // InnerShopManagementRequest shopManagement;
 
-    // List<InnerVariantRequest> variants;
+    @Valid
+    InnerShopManagementRequest shopManagement;
+    
+    @Valid
+    List<InnerVariantRequest> variants;
 
     @Data
     @Builder

@@ -82,6 +82,10 @@ public class ShopManagementRequest {
     @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InnerShopManagementRequest {
-        Long id;
+        @NotNull(message = "category.id.notNull", groups = { 
+            ProductRequest.Create.class,
+            ProductRequest.Update.class,
+        })
+        UUID id;
     }
 }

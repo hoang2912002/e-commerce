@@ -197,8 +197,6 @@ public class OptionValueServiceImpl implements OptionValueService{
 
     private OptionValue getRawOptionValueById(Long id){
         try {
-            // Optional<OptionValue> opValue = this.optionValueRepository.findById(id);
-            // return opValue.isPresent() ? opValue.get() : null;
             return this.optionValueRepository.findById(id).orElseThrow(
                 () -> new ServiceException(EnumError.PRODUCT_OPTION_ERR_NOT_FOUND_ID, "option.value.not.found.id",Map.of("id", id))
             );
