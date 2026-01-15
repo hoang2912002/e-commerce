@@ -4,6 +4,8 @@ networks:
 
 volumes:
   postgres_data:
+  mysql_data:
+  mongodb_data:
 
 services:
   # --- THÊM KAFKA ---
@@ -59,3 +61,31 @@ services:
       PGADMIN_DEFAULT_PASSWORD: root         # Password để login pgAdmin
     depends_on:
       - db
+  # ---------------- MYSQL ----------------
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: always
+    networks:
+      - my-internal-net
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  # ---------------- MONGODB ----------------
+  mongodb:
+    image: mongo:7.0
+    container_name: mongodb
+    restart: always
+    networks:
+      - my-internal-net
+    ports:
+      - "27017:27017"
+    # environment:
+    #   MONGO_INITDB_ROOT_USERNAME: root
+    #   MONGO_INITDB_ROOT_PASSWORD: root
+    volumes:
+      - mongodb_data:/data/db
