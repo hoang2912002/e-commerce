@@ -17,7 +17,7 @@ public interface ApprovalHistoryService {
     PaginationResponse<List<ApprovalHistoryResponse>> getAllApprovalHistories(SearchRequest request);
     void deleteApprovalHistory(Long id);
     void handleApprovalHistoryUpSertProduct(
-        Product product, UUID productId, // Đây là id để kiểm tra tạo mới hay cập nhật
+        Product product, boolean isCreate, // Đây là id để kiểm tra tạo mới hay cập nhật
         String entityType
     );
     boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval);

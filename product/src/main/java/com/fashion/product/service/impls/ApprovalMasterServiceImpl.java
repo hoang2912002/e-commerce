@@ -231,7 +231,7 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
 
         } catch (CompletionException e) {
             log.error("PRODUCT-SERVICE: [saveOrUpdate] Async Error: {}", e.getCause().getMessage());
-            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "external.service.error");
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {

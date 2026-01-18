@@ -16,6 +16,8 @@ public enum ApprovalMasterEnum {
     NEEDS_ADJUSTMENT,    // Đề xuất điều chỉnh
     FINISHED_ADJUSTMENT, // Hoàn tất điều chỉnh
     ;
+
+    // Create update approval
     public void validateTransition(ApprovalMasterEnum status, ApprovalErrorProvider errorProvider, Map<String, Object> params){
         boolean isValid = switch (this) {
             case PENDING -> status == APPROVED || status == REJECTED;
@@ -34,6 +36,7 @@ public enum ApprovalMasterEnum {
         }
     }
 
+    // Product
     public void validateCreateAbility(ApprovalErrorProvider errorProvider, Map<String, Object> params){
         Set<ApprovalMasterEnum> listExistMasterEnums = Set.of(ApprovalMasterEnum.values());
 
@@ -47,6 +50,7 @@ public enum ApprovalMasterEnum {
         }
     }
 
+    // Product
     public void validateUpdateAbility(UUID requestId) {
         // Chỉ PENDING và ADJUSTMENT là được phép cập nhật dữ liệu
         if (this != PENDING && this != ADJUSTMENT) {
@@ -54,6 +58,24 @@ public enum ApprovalMasterEnum {
                 EnumError.PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING_ADJUSTMENT, 
                 "product.not.update.approval.status.pending.approved",
                 Map.of("ID", requestId)
+            );
+        }
+    }
+
+    //Shop management
+    public void validateCrUpAbility(ApprovalMasterEnum nextStatus, ApprovalErrorProvider errorProvider, Map<String, Object> params){
+        
+        boolean isValid = switch (this) {
+            case PENDING -> nextStatus == null || nextStatus == PENDING;
+            case APPROVED -> nextStatus == null;
+            case NEEDS_ADJUSTMENT, FINISHED_ADJUSTMENT, REJECTED -> false;
+            case ADJUSTMENT -> nextStatus == FINISHED_ADJUSTMENT;
+        };
+        if (!isValid) {
+            throw new ServiceException(
+                errorProvider.getError(this),
+                errorProvider.getMessageCode(this),
+                params
             );
         }
     }

@@ -107,8 +107,9 @@ public class ShopManagementServiceImpl implements ShopManagementService{
 
             UserResponse userResponse = this.getUserResponse(shopManagement.getUserId());
             String slug = SlugUtil.toSlug(shopManagement.getName());
-            this.checkPromotionExistByCode(shopManagement.getName(), null);
+            this.checkShopManagementExistByName(shopManagement.getName(), null);
             shopManagement.setSlug(slug);
+            shopManagement.setActivated(true);
             shopManagement.setUserId(userResponse.getId());
             ShopManagement smCreate = this.shopManagementRepository.saveAndFlush(shopManagement);
 
@@ -156,21 +157,24 @@ public class ShopManagementServiceImpl implements ShopManagementService{
             }
             UserResponse userResponse = this.getUserResponse(shopManagement.getUserId());
             String slug = SlugUtil.toSlug(shopManagement.getName());
-            this.checkPromotionExistByCode(shopManagement.getName(), shopManagement.getId());
+            this.checkShopManagementExistByName(shopManagement.getName(), shopManagement.getId());
 
             // Check important field change ?
             Map<String, Object[]> changedFields = this.detectChangedFields(upSM, shopManagement);
 
             boolean isImportantChange = changedFields.keySet().stream().anyMatch(IMPORTANT_FIELDS::contains);
-            upSM.setSlug(slug);
-            upSM.setUserId(userResponse.getId());
+            
             if(isImportantChange){
                 // Check approval history
-                // throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+                this.approvalHistoryService.checkApprovalHistoryForUpShop(upSM, false);
+                this.shopManagementMapper.toUpdate(upSM, request);
             }
             else{
                 upSM.setDescription(shopManagement.getDescription());
             }
+            upSM.setSlug(slug);
+            upSM.setActivated(true);
+            upSM.setUserId(userResponse.getId());
             // Send kafka 
             ShopManagementAddressEvent addressEvent = ShopManagementAddressEvent.builder()
                 .id(null)
@@ -329,7 +333,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
-    private void checkPromotionExistByCode(String name, UUID excludeId){
+    private void checkShopManagementExistByName(String name, UUID excludeId){
         try {
             String slug = SlugUtil.toSlug(name);
             Optional<ShopManagement> promotion;

@@ -193,84 +193,60 @@ public class PromotionServiceImpl implements PromotionService{
         PromotionRequest promotionRequest,
         List<InnerCategoryRequest> categoryRequests,
         List<InnerProductRequest> productRequests
-    ){
+    ) {
         try {
             this.checkPromotionExistByCode(promotion.getCode(), promotion.getId());
-            final boolean isAmountType = promotion.getOptionPromotion() == 1;
-            Promotion savePromotion = promotionMapper.toUpdate(promotion, promotionRequest);
-            savePromotion.setActivated(true);
-            savePromotion.setDiscountPercent(isAmountType ? null : promotionRequest.getDiscountPercent());
-            savePromotion.setMinDiscountAmount(isAmountType ? promotionRequest.getMinDiscountAmount() : null);
-            savePromotion.setMaxDiscountAmount(isAmountType ? promotionRequest.getMaxDiscountAmount() : null);
+            final boolean isAmountType = promotionRequest.getOptionPromotion() == 1;
 
-            final Promotion savedPromotion = this.promotionRepository.saveAndFlush(savePromotion);
-
-            if ((categoryRequests == null || categoryRequests.isEmpty()) &&
-                (productRequests == null || productRequests.isEmpty())) {
-                return promotionMapper.toDto(savePromotion);
-            }
-            // Xử lý lưu phiếu giảm giá theo sản phẩm
-
-            List<UUID> cateIds = categoryRequests.stream()
-                .filter(Objects::nonNull)
-                .map(InnerCategoryRequest::getId)
-                .distinct()
-                .toList();
+            promotionMapper.toUpdate(promotion, promotionRequest);
             
-            List<UUID> productIds = productRequests.stream()
-                .filter(Objects::nonNull)
-                .map(InnerProductRequest::getId)
-                .distinct()
-                .toList();
-            
-            List<Category> allCategories = this.categoryService.getCategoryTreeStartByListId(cateIds);
-            List<Product> products = this.productService.findListProductById(productIds);
-            List<PromotionProduct> promotionProducts = new ArrayList<>();
+            promotion.setActivated(true);
+            promotion.setDiscountPercent(isAmountType ? null : promotionRequest.getDiscountPercent());
+            promotion.setMinDiscountAmount(isAmountType ? promotionRequest.getMinDiscountAmount() : null);
+            promotion.setMaxDiscountAmount(isAmountType ? promotionRequest.getMaxDiscountAmount() : null);
 
-            if(savedPromotion.getDiscountType().equals(PromotionEnum.CATEGORY)){
-                promotionProducts = allCategories.stream()
-                .flatMap(c -> c.getProducts().stream()
+            List<PromotionProduct> newItems = new ArrayList<>();
+            
+            if (PromotionEnum.CATEGORY.equals(promotion.getDiscountType()) && categoryRequests != null) {
+                List<UUID> cateIds = categoryRequests.stream().map(InnerCategoryRequest::getId).distinct().toList();
+                List<Category> allCategories = this.categoryService.getCategoryTreeStartByListId(cateIds);
+                
+                newItems = allCategories.stream()
+                    .flatMap(c -> c.getProducts().stream()
+                        .map(p -> PromotionProduct.builder()
+                            .category(c)
+                            .product(p)
+                            .promotion(promotion) // Dùng biến promotion gốc đã Lock
+                            .activated(true)
+                            .build()
+                        )
+                    ).collect(Collectors.toList());
+            } else if (productRequests != null) {
+                List<UUID> productIds = productRequests.stream().map(InnerProductRequest::getId).distinct().toList();
+                List<Product> products = this.productService.findListProductById(productIds);
+                
+                newItems = products.stream()
                     .map(p -> PromotionProduct.builder()
-                        .category(c)
+                        .category(p.getCategory())
                         .product(p)
-                        .promotion(savedPromotion)
+                        .promotion(promotion) // Dùng biến promotion gốc đã Lock
                         .activated(true)
                         .build()
-                    )
-                )
-                .collect(Collectors.toList());
-            }
-            else{
-                promotionProducts = products.stream()
-                    .map(product -> PromotionProduct.builder()
-                            .category(product.getCategory())
-                            .product(product)
-                            .promotion(savedPromotion)
-                            .build()
-                    )
-                    .toList();
+                    ).collect(Collectors.toList());
             }
 
-            List<PromotionProduct> savedPromotionProducts = this.promotionProductRepository.saveAllAndFlush(promotionProducts);
-            final List<InnerCategoryResponse> cateResponse =  savedPromotionProducts.stream()
-                .map(PromotionProduct::getCategory)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(Category::getId, categoryMapper::toInnerEntity, (a, b) -> a))
-                .values()
-                .stream()
-                .toList();
+            if (promotion.getPromotionProducts() == null) {
+                promotion.setPromotionProducts(new ArrayList<>());
+            }
+            
+            promotion.getPromotionProducts().clear();
+            if (!newItems.isEmpty()) {
+                promotion.getPromotionProducts().addAll(newItems);
+            }
 
-            final List<InnerProductResponse> productResponse = savedPromotionProducts.stream()
-                .map(PromotionProduct::getProduct)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(Product::getId, productMapper::toInnerEntity, (a, b) -> a))
-                .values()
-                .stream()
-                .toList();
-            final PromotionResponse promotionResponse = promotionMapper.toDto(savedPromotion);
-            promotionResponse.setCategories(cateResponse);
-            promotionResponse.setProducts(productResponse);
-            return promotionResponse;
+            Promotion savedPromotion = this.promotionRepository.saveAndFlush(promotion);
+            return buildPromotionResponse(savedPromotion);
+
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -278,7 +254,25 @@ public class PromotionServiceImpl implements PromotionService{
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
+    
+    private PromotionResponse buildPromotionResponse(Promotion savedPromotion) {
+        final List<InnerCategoryResponse> cateResponse = savedPromotion.getPromotionProducts().stream()
+            .map(PromotionProduct::getCategory)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toMap(Category::getId, categoryMapper::toInnerEntity, (a, b) -> a))
+            .values().stream().toList();
 
+        final List<InnerProductResponse> productResponse = savedPromotion.getPromotionProducts().stream()
+            .map(PromotionProduct::getProduct)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toMap(Product::getId, productMapper::toInnerEntity, (a, b) -> a))
+            .values().stream().toList();
+
+        PromotionResponse response = promotionMapper.toDto(savedPromotion);
+        response.setCategories(cateResponse);
+        response.setProducts(productResponse);
+        return response;
+    }
     private void checkPromotionExistByCode(String code, UUID excludeId){
         try {
             Optional<Promotion> promotion;

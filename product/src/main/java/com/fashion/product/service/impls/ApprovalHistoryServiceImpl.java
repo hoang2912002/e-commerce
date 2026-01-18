@@ -49,6 +49,7 @@ import com.fashion.product.repository.ShopManagementRepository;
 import com.fashion.product.security.SecurityUtils;
 import com.fashion.product.service.ApprovalHistoryService;
 import com.fashion.product.service.provider.ApprovalHistoryProductErrorProvider;
+import com.fashion.product.service.provider.ApprovalHistorySmErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistoryUpSertErrorProvider;
 
 import lombok.AccessLevel;
@@ -69,6 +70,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     ShopManagementRepository shopManagementRepository;
     ApprovalHistoryUpSertErrorProvider HISTORY_CREATE_UPDATE_ERROR_PROVIDER;
     ApprovalHistoryProductErrorProvider HISTORY_PRODUCT_ERROR_PROVIDER;
+    ApprovalHistorySmErrorProvider HISTORY_SHOP_MANAGEMENT_ERROR_PROVIDER;
 
     public final static String ENTITY_TYPE_PRODUCT = "PRODUCT";
     public final static String ENTITY_TYPE_INVENTORY = "INVENTORY";
@@ -219,7 +221,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
 
     @Override
     @Transactional(rollbackFor = ServiceException.class)
-    public void handleApprovalHistoryUpSertProduct(Product product, UUID productId, String entityType) {
+    public void handleApprovalHistoryUpSertProduct(Product product, boolean isCreate, String entityType) {
         try {
             Map<ApprovalMasterEnum, ApprovalMaster> masterMap = this.getApprovalMasterMap(entityType);
 
@@ -229,7 +231,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                         masterMap.values().stream().map(ApprovalMaster::getId).toList());
             
             // 3. Xử lý logic dựa trên trạng thái (State-driven logic)
-            this.processApprovalState(product, productId, lastHistoryOpt, masterMap, entityType);
+            this.processApprovalState(product, isCreate, lastHistoryOpt, masterMap, entityType);
 
         } catch (ServiceException e) {
             throw e;
@@ -241,8 +243,25 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
 
     @Override
     public boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'checkApprovalHistoryForUpShop'");
+        try {
+            Map<ApprovalMasterEnum, ApprovalMaster> masterMap = this.getApprovalMasterMap(ENTITY_TYPE_SHOP_MANAGEMENT);
+            
+            Optional<ApprovalHistory> lastHistoryOpt = this.approvalHistoryRepository
+                .findFirstByRequestIdAndApprovalMasterIdInOrderByApprovedAtDesc(shopManagement.getId(), 
+                    masterMap.values().stream().map(ApprovalMaster::getId).toList());
+            
+            ApprovalMaster nextMaster = !skipCreateNextApproval ? resolveNextApprovalMaster(lastHistoryOpt, masterMap) : null;
+            return this.checkShopManagementUpdatable(
+                lastHistoryOpt, 
+                shopManagement,
+                nextMaster
+            );
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [checkApprovalHistoryForUpShop] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
@@ -445,7 +464,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
         return masters.stream().collect(Collectors.toMap(ApprovalMaster::getStatus, Function.identity()));
     }
 
-    private void processApprovalState(Product product, UUID productId, 
+    private void processApprovalState(Product product, boolean isCreate, 
         Optional<ApprovalHistory> lastHistoryOpt, 
         Map<ApprovalMasterEnum, ApprovalMaster> masterMap,
         String entityType
@@ -461,7 +480,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             }
 
             // TRƯỜNG HỢP 1: TẠO MỚI (productId == null)
-            if (productId == null) {
+            if (isCreate) {
                 lastHistoryOpt.ifPresent(h -> h.getApprovalMaster().getStatus()
                     .validateCreateAbility(HISTORY_PRODUCT_ERROR_PROVIDER, errorParams));
 
@@ -509,4 +528,57 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             .note(note)
             .build();
     }
+
+    private ApprovalMaster resolveNextApprovalMaster(Optional<ApprovalHistory> lastHistoryOpt, Map<ApprovalMasterEnum, ApprovalMaster> masterMap) {
+        return lastHistoryOpt.map(lastHistory -> {
+            ApprovalMasterEnum lastStatus = lastHistory.getApprovalMaster().getStatus();
+
+            return switch (lastStatus) {
+                case PENDING -> lastHistory.getApprovalMaster();
+                case ADJUSTMENT -> masterMap.get(ApprovalMasterEnum.FINISHED_ADJUSTMENT);
+                default -> null;
+            };
+        }).orElseGet(() -> masterMap.get(ApprovalMasterEnum.PENDING));
+    }
+
+    private boolean checkShopManagementUpdatable(Optional<ApprovalHistory> lastHistoryOpt, ShopManagement shop, ApprovalMaster nextMaster) {
+        try {
+            Map<String, Object> errorParams = Map.of("name", shop.getName());
+            return lastHistoryOpt.map(lastHistory -> {
+                ApprovalMasterEnum lastStatus = lastHistory.getApprovalMaster().getStatus();
+                lastStatus.validateCrUpAbility(nextMaster.getStatus(),HISTORY_SHOP_MANAGEMENT_ERROR_PROVIDER,errorParams);
+
+                if(lastStatus == ApprovalMasterEnum.ADJUSTMENT && 
+                    nextMaster.getStatus().equals(ApprovalMasterEnum.FINISHED_ADJUSTMENT)
+                ){
+                    this.createApprovalHistory(
+                        this.buildHistory(null,nextMaster,shop.getId(),"Re-create missing approval request"),
+                        true,
+                        ENTITY_TYPE_SHOP_MANAGEMENT
+                    );
+                }
+                return true;
+            }).orElseGet(() -> {
+                if(nextMaster != null){
+                    ApprovalHistoryResponse create = this.createApprovalHistory(
+                        this.buildHistory(null,nextMaster,shop.getId(),"Re-create missing approval request"),
+                        true,
+                        ENTITY_TYPE_SHOP_MANAGEMENT
+                    );
+                    return create != null;
+                }
+                throw new ServiceException(
+                    EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_LAST_SHOP_MANAGEMENT,
+                    "approval.history.not.found.status.shop.management",
+                    errorParams
+                );
+            });
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [checkShopManagementUpdatable] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
 }

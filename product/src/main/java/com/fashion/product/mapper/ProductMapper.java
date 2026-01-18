@@ -45,5 +45,7 @@ public interface ProductMapper extends EntityMapper<ProductResponse,Product, Inn
 
     @Named("toUpdate")
     @Mapping(target = "variants", ignore = true)
-    Product toUpdate(@MappingTarget Product entity, ProductRequest dto);
+    @Mapping(target = "category", ignore = true)
+    @Mapping(target = "shopManagement", ignore = true)
+    void toUpdate(@MappingTarget Product entity, ProductRequest dto);
 }

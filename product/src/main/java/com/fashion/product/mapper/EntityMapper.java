@@ -27,5 +27,5 @@ public interface EntityMapper<D, E, I, R> {
     
     @Named("toUpdate")
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
-    E toUpdate(@MappingTarget E entity, R request);
+    void toUpdate(@MappingTarget E entity, R request);
 }

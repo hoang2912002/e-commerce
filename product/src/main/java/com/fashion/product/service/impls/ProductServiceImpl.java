@@ -75,7 +75,7 @@ public class ProductServiceImpl implements ProductService{
         log.info("PRODUCT-SERVICE: [createProduct] Start create product");
         try {
             Product product = this.productMapper.toValidated(request);
-            return upSertProduct(product,request.getVariants());
+            return upSertProduct(product,request.getVariants(),request.getCategory().getId(),request.getShopManagement().getId());
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -89,18 +89,15 @@ public class ProductServiceImpl implements ProductService{
     public ProductResponse updateProduct(ProductRequest request) {
         log.info("PRODUCT-SERVICE: [updateProduct] Start update product");
         try {
-            Product lock = this.productRepository.lockProductById(request.getId()).orElseThrow(
+            Product product = this.productRepository.lockProductById(request.getId()).orElseThrow(
                 () -> new ServiceException(EnumError.PRODUCT_PRODUCT_ERR_NOT_FOUND_ID,"product.not.found.id", Map.of("id",request.getId()))
             );
-            Product product = this.productMapper.toUpdate(lock, request);
-            // product.setVariants(null);
-            final List<UUID> skuIdListDelete = this.productSkuRepository.findAllByProductId(product.getId()).stream()
-                .map(ProductSku::getId)
-                .toList();
-            // this.productSkuRepository.deleteAllById(skuIdListDelete);
+            this.productMapper.toUpdate(product, request);
+            
+            product.getVariants().clear();
             this.variantRepository.deleteAllByProductId(product.getId());
 
-            return upSertProduct(product,request.getVariants());
+            return upSertProduct(product,request.getVariants(),request.getCategory().getId(),request.getShopManagement().getId());
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -171,21 +168,22 @@ public class ProductServiceImpl implements ProductService{
         }
     }
 
-    private ProductResponse upSertProduct(Product product, List<InnerVariantRequest> variants){
+    private ProductResponse upSertProduct(Product product, List<InnerVariantRequest> variants, UUID categoryId, UUID shopManagementId){
         try {
             final String slug = SlugUtil.toSlug(product.getName());
-            checkExistedProduct(slug, product.getName(), product.getCategory().getId(), product.getShopManagement().getId(), product.getId());
+            boolean isCreate = Objects.isNull(product.getId());
+            checkExistedProduct(slug, product.getName(), categoryId, shopManagementId, product.getId());
 
-            ShopManagement shopManagement = this.shopManagementRepository.findById(product.getShopManagement().getId())
+            ShopManagement shopManagement = this.shopManagementRepository.findById(shopManagementId)
                 .orElseThrow(
                     () -> new ServiceException(
                         EnumError.PRODUCT_SHOP_MANAGEMENT_ERR_NOT_FOUND_ID,
                         "shop.management.not.found.id",
-                        Map.of("shopManagementId",product.getShopManagement().getId())
+                        Map.of("shopManagementId",shopManagementId)
                     )
                 );
 
-            Category category = this.categoryRepository.findById(product.getCategory().getId())
+            Category category = this.categoryRepository.findById(categoryId)
                 .map(c -> {
                     if(!this.categoryService.isLeaf(c))
                         throw new ServiceException(
@@ -204,6 +202,7 @@ public class ProductServiceImpl implements ProductService{
                 );
             product.setSlug(slug);
             product.setCategory(category);
+            product.setActivated(true);
             product.setShopManagement(shopManagement);
             Product createdProduct = productRepository.save(product);
 
@@ -265,7 +264,6 @@ public class ProductServiceImpl implements ProductService{
                 this.optionValueRepository.findAllBySlugIn(optionValuesSlug).stream()
                 .collect(Collectors.toMap(OptionValue::getSlug, Function.identity()));
 
-            // 9 Tạo danh sách Variant
             final List<Variant> variantEntities = variants.stream()
             .filter(v -> allSkuMap.containsKey(v.getSkuId().toUpperCase()))
             .flatMap(v -> v.getOptionValues().stream()
@@ -285,7 +283,7 @@ public class ProductServiceImpl implements ProductService{
                 this.variantRepository.saveAll(variantEntities);
             }   
 
-            this.approvalHistoryService.handleApprovalHistoryUpSertProduct(createdProduct,product.getId(),ApprovalHistoryServiceImpl.ENTITY_TYPE_PRODUCT);
+            this.approvalHistoryService.handleApprovalHistoryUpSertProduct(createdProduct,isCreate,ApprovalHistoryServiceImpl.ENTITY_TYPE_PRODUCT);
             return productMapper.toDto(createdProduct);
         } catch (ServiceException e) {
             throw e;
