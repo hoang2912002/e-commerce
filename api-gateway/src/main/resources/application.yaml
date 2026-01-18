@@ -7,6 +7,8 @@ service:
     url: http://localhost:8080
   product:
     url: http://localhost:8081
+  inventory:
+    url: http://localhost:8083
   notification:
     url: http://localhost:8086
   resource:
@@ -22,28 +24,39 @@ spring:
       server:
         webflux:
           routes:
+          # Identity service
           - id: identity-service
             uri: ${service.identity.url}
             predicates:
             - Path=${app.api-prefix}/identity/**
             filters:
               - StripPrefix=2
+          # Resource service
           - id: resource-service
             uri: ${service.resource.url}
             predicates:
             - Path=${app.api-prefix}/resource/**
             filters:
               - StripPrefix=2
+          # Notification service
           - id: notification-service
             uri: ${service.notification.url}
             predicates:
             - Path=${app.api-prefix}/notification/**
             filters:
               - StripPrefix=2
+          # Product service
           - id: product-service
             uri: ${service.product.url}
             predicates:
             - Path=${app.api-prefix}/product/**
+            filters:
+              - StripPrefix=2
+          # Inventory service
+          - id: inventory-service
+            uri: ${service.inventory.url}
+            predicates:
+            - Path=${app.api-prefix}/inventory/**
             filters:
               - StripPrefix=2
 jwt:
