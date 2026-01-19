@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.hibernate.annotations.GenericGenerator;
 
+import com.fashion.inventory.common.annotation.Searchable;
 import com.fashion.inventory.common.enums.WareHouseStatusEnum;
 
 import jakarta.persistence.CascadeType;
@@ -45,12 +46,15 @@ public class WareHouse extends AbstractAuditingEntity<UUID>{
     @Column(name = "activated")
     Boolean activated;
 
+    @Searchable
     @Column(name = "code", unique = true, nullable = false, length = 10)
     String code;
 
+    @Searchable
     @Column(name = "name", nullable = false)
     String name;
 
+    @Searchable
     @Column(name = "location", nullable =  false)
     String location;
 
@@ -58,9 +62,9 @@ public class WareHouse extends AbstractAuditingEntity<UUID>{
     @Enumerated(EnumType.STRING)
     WareHouseStatusEnum status;
 
-    @OneToMany(mappedBy = "wareHouse", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "wareHouse", fetch = FetchType.LAZY, orphanRemoval = true)
     List<Inventory> inventories;
     
-    @OneToMany(mappedBy = "wareHouse", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "wareHouse", fetch = FetchType.LAZY, orphanRemoval = true)
     List<Inventory> inventoryTransactions;
 }

@@ -3,6 +3,7 @@ package com.fashion.inventory.mapper;
 import java.util.List;
 
 import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
@@ -34,6 +35,7 @@ public interface WareHouseMapper extends EntityMapper<WareHouseResponse, WareHou
     List<InnerWareHouseResponse> toInnerEntity(List<WareHouse> entity);
 
     @Named("toValidated")
-    // @Mapping(target = "id", source = "id", qualifiedByName = "addressToUuid")
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "status", ignore = true)
     WareHouse toValidated(WareHouseRequest dto);
 }
