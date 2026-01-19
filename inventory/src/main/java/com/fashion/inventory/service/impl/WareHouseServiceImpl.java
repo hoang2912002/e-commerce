@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -13,6 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.inventory.common.enums.EnumError;
+import com.fashion.inventory.common.enums.WareHouseStatusEnum;
+import com.fashion.inventory.common.response.ApiResponse;
+import com.fashion.inventory.common.util.ConvertUuidUtil;
 import com.fashion.inventory.common.util.PageableUtils;
 import com.fashion.inventory.common.util.SpecificationUtils;
 import com.fashion.inventory.dto.request.WareHouseRequest;
@@ -20,13 +24,22 @@ import com.fashion.inventory.dto.request.search.SearchModel;
 import com.fashion.inventory.dto.request.search.SearchOption;
 import com.fashion.inventory.dto.request.search.SearchRequest;
 import com.fashion.inventory.dto.response.PaginationResponse;
+import com.fashion.inventory.dto.response.UserResponse;
+import com.fashion.inventory.dto.response.UserResponse.UserInsideToken;
 import com.fashion.inventory.dto.response.WareHouseResponse;
 import com.fashion.inventory.entity.WareHouse;
 import com.fashion.inventory.exception.ServiceException;
+import com.fashion.inventory.intergration.IdentityClient;
 import com.fashion.inventory.mapper.WareHouseMapper;
 import com.fashion.inventory.repository.WareHouseRepository;
+import com.fashion.inventory.security.SecurityUtils;
 import com.fashion.inventory.service.WareHouseService;
+import com.fashion.inventory.service.provider.WareHouseUpSertErrorProvider;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
+import feign.FeignException;
+import feign.FeignException.FeignClientException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -34,10 +47,18 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class WareHouseServiceImpl implements WareHouseService {
-    WareHouseMapper wareHouseMapper;
-    WareHouseRepository wareHouseRepository;
+    final WareHouseMapper wareHouseMapper;
+    final WareHouseRepository wareHouseRepository;
+    final WareHouseUpSertErrorProvider wareHouseUpSertErrorProvider;
+    final IdentityClient identityClient;
+    
+    @Value("${role.admin}")
+    String roleAdmin;
+    
+    @Value("${role.seller}")
+    String roleSeller;
     
     @Override
     @Transactional(readOnly = true)
@@ -79,8 +100,7 @@ public class WareHouseServiceImpl implements WareHouseService {
     public WareHouseResponse createWareHouse(WareHouseRequest request) {
         try {
             log.info("INVENTORY-SERVICE: [createWareHouse] Start create ware house");
-            WareHouse wareHouse = this.wareHouseMapper.toValidated(request);
-            return null;
+            return this.upSertWareHouse(request);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -90,15 +110,32 @@ public class WareHouseServiceImpl implements WareHouseService {
     }
 
     @Override
+    @Transactional(rollbackFor = ServiceException.class)
     public WareHouseResponse updateWareHouse(WareHouseRequest request) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'updateWareHouse'");
+        try {
+            log.info("INVENTORY-SERVICE: [updateWareHouse] Start update ware house");
+            return this.upSertWareHouse(request);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [updateWareHouse] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
+    @Transactional(readOnly = true)
     public WareHouseResponse getWareHouseById(UUID id) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getWareHouseById'");
+        try {
+            return this.wareHouseMapper.toDto(this.wareHouseRepository.findById(id).orElseThrow(
+                () -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,"ware.house.not.found.id", Map.of("id", id))
+            ));
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [getWareHouseById] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
@@ -107,11 +144,42 @@ public class WareHouseServiceImpl implements WareHouseService {
         throw new UnsupportedOperationException("Unimplemented method 'deleteWareHouseById'");
     }
     
-    private WareHouseResponse upSertWareHouse(WareHouse wareHouse){
+    private WareHouseResponse upSertWareHouse(WareHouseRequest request){
         try {
-            this.checkExistedWareHouse(wareHouse.getCode(),wareHouse.getName(),null);
-            
-            return null;
+            UserInsideToken currentUser = SecurityUtils.getCurrentUserId().orElseThrow(
+                () -> new ServiceException(EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, "auth.accessToken.invalid")
+            );
+            ApiResponse<UserResponse> userResponse = this.identityClient.getUserById(currentUser.getId());
+            if(!userResponse.isSuccess()){
+                throw new ServiceException(
+                    EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, 
+                    userResponse.getErrorCode()
+                );
+            }
+            UserResponse user = userResponse.getData();
+            if(user.getRole() == null || !List.of(roleAdmin, roleSeller).contains(user.getRole().getSlug().toUpperCase())){
+                throw new ServiceException(
+                    EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, 
+                    "auth.accessToken.invalid.role"
+                );
+            }
+            boolean isCreate = request.getId() == null;
+            WareHouse wareHouse;
+            if(isCreate){
+                wareHouse = this.wareHouseMapper.toValidated(request);
+                wareHouse.setStatus(WareHouseStatusEnum.PENDING);
+            } else{
+                wareHouse = this.wareHouseRepository.lockWareHouseById(request.getId()).orElseThrow(
+                    () -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,"ware.house.not.found.id", Map.of("id", request.getId()))
+                );
+                wareHouse.getStatus().validateUpSertAbility(wareHouseUpSertErrorProvider, Map.of("code", wareHouse.getCode(), "name", wareHouse.getName()));
+            }
+            this.checkExistedWareHouse(wareHouse.getCode(),wareHouse.getName(),wareHouse.getId());
+            wareHouse.setName(request.getName());
+            wareHouse.setLocation(request.getLocation());
+            wareHouse.setActivated(true);
+            wareHouse.setCode(request.getCode().trim().toUpperCase());
+            return this.wareHouseMapper.toDto(this.wareHouseRepository.save(wareHouse));
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {

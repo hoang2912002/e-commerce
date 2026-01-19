@@ -227,6 +227,8 @@ public class UserServiceImpl implements UserService{
                 throw new ServiceException(EnumError.IDENTITY_USER_ERR_NOT_FOUND_ID, "user.not.found.id",Map.of("id", id));
             }
             return userMapper.toDto(user);
+        } catch (ServiceException e) {
+            throw e;
         } catch (Exception e) {
             throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }

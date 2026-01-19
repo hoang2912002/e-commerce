@@ -104,7 +104,14 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
                 : CompletableFuture.completedFuture(null);
 
             // Đợi cả 2 xong
-            CompletableFuture.allOf(userFuture, roleFuture).join();
+            try {
+                CompletableFuture.allOf(userFuture, roleFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
 
             RoleResponse roleRes = roleFuture.join();
             UserResponse userRes = userFuture.join();

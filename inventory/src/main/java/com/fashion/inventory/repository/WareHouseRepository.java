@@ -5,10 +5,15 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 import com.fashion.inventory.entity.WareHouse;
+
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 
 public interface WareHouseRepository extends JpaRepository<WareHouse, UUID>, JpaSpecificationExecutor<WareHouse>{
     @Query("SELECT w FROM WareHouse w WHERE w.code = :code OR w.name =:name")
@@ -23,4 +28,11 @@ public interface WareHouseRepository extends JpaRepository<WareHouse, UUID>, Jpa
         @Param("name") String name,
         @Param("id") UUID id
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT w FROM WareHouse w WHERE w.id = :id")
+    @QueryHints({
+        @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
+    })
+    Optional<WareHouse> lockWareHouseById(@Param("id") UUID id);
 }

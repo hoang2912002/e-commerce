@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -214,9 +215,15 @@ public class ShopManagementServiceImpl implements ShopManagementService{
             CompletableFuture<AddressResponse> addressFuture = (shopManagement.getAddressId() != null)
                 ? AsyncUtils.fetchAsync(() -> identityClient.getAddressById(shopManagement.getAddressId()))
                 : CompletableFuture.completedFuture(null);
-
-            // Đợi cả 2 (nếu có)
-            CompletableFuture.allOf(userFuture, addressFuture).join();
+            
+            try {
+                CompletableFuture.allOf(userFuture, addressFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
             
             UserResponse user = userFuture.join();
             AddressResponse address = addressFuture.join();

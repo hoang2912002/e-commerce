@@ -1,4 +1,4 @@
-package com.fashion.product.intergration;
+package com.fashion.inventory.intergration;
 
 import java.util.UUID;
 
@@ -6,12 +6,12 @@ import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
-import com.fashion.product.common.response.ApiResponse;
-import com.fashion.product.config.AuthenticationRequestInterceptor;
-import com.fashion.product.dto.response.AddressResponse;
-import com.fashion.product.dto.response.RoleResponse;
-import com.fashion.product.dto.response.UserResponse;
-import com.fashion.product.intergration.config.FeignClientConfigError;
+import com.fashion.inventory.common.response.ApiResponse;
+import com.fashion.inventory.config.AuthenticationRequestInterceptor;
+import com.fashion.inventory.dto.response.AddressResponse;
+import com.fashion.inventory.dto.response.RoleResponse;
+import com.fashion.inventory.dto.response.UserResponse;
+import com.fashion.inventory.intergration.config.FeignClientConfigError;
 
 @FeignClient(url = "${service.identity.url}", name = "${service.identity.name}", configuration = {
     AuthenticationRequestInterceptor.class,
