@@ -69,6 +69,9 @@ public class InventoryTransaction extends AbstractAuditingEntity<Long>{
     @Column(name = "note")
     String note;
 
+    @Column(name = "event_id", nullable = false) // Check Idempotency khi tạo tồn kho từ product-service
+    UUID eventId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "warehouse_id")
     WareHouse wareHouse;

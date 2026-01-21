@@ -8,10 +8,10 @@ import org.mapstruct.Named;
 import org.mapstruct.factory.Mappers;
 
 import com.fashion.inventory.dto.request.WareHouseRequest;
-import com.fashion.inventory.dto.response.AddressResponse;
-import com.fashion.inventory.dto.response.AddressResponse.InnerAddressResponse;
 import com.fashion.inventory.dto.response.WareHouseResponse;
 import com.fashion.inventory.dto.response.WareHouseResponse.InnerWareHouseResponse;
+import com.fashion.inventory.dto.response.internal.AddressResponse;
+import com.fashion.inventory.dto.response.internal.AddressResponse.InnerAddressResponse;
 import com.fashion.inventory.entity.WareHouse;
 @Mapper(
     componentModel = "spring",

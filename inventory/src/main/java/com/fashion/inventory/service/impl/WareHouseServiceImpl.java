@@ -24,9 +24,9 @@ import com.fashion.inventory.dto.request.search.SearchModel;
 import com.fashion.inventory.dto.request.search.SearchOption;
 import com.fashion.inventory.dto.request.search.SearchRequest;
 import com.fashion.inventory.dto.response.PaginationResponse;
-import com.fashion.inventory.dto.response.UserResponse;
-import com.fashion.inventory.dto.response.UserResponse.UserInsideToken;
 import com.fashion.inventory.dto.response.WareHouseResponse;
+import com.fashion.inventory.dto.response.internal.UserResponse;
+import com.fashion.inventory.dto.response.internal.UserResponse.UserInsideToken;
 import com.fashion.inventory.entity.WareHouse;
 import com.fashion.inventory.exception.ServiceException;
 import com.fashion.inventory.intergration.IdentityClient;
@@ -35,6 +35,7 @@ import com.fashion.inventory.repository.WareHouseRepository;
 import com.fashion.inventory.security.SecurityUtils;
 import com.fashion.inventory.service.WareHouseService;
 import com.fashion.inventory.service.provider.WareHouseUpSertErrorProvider;
+import com.fashion.inventory.service.provider.WareHouseUpdateStatusErrorProvider;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -52,6 +53,7 @@ public class WareHouseServiceImpl implements WareHouseService {
     final WareHouseMapper wareHouseMapper;
     final WareHouseRepository wareHouseRepository;
     final WareHouseUpSertErrorProvider wareHouseUpSertErrorProvider;
+    final WareHouseUpdateStatusErrorProvider wareHouseUpdateStatusErrorProvider;
     final IdentityClient identityClient;
     
     @Value("${role.admin}")
@@ -143,26 +145,36 @@ public class WareHouseServiceImpl implements WareHouseService {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'deleteWareHouseById'");
     }
+
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public WareHouseResponse updateWareHouseStatus(WareHouseRequest request) {
+        try {
+            log.info("INVENTORY-SERVICE: [updateWareHouseStatus] Start update ware house status");
+            UserInsideToken currentUser = SecurityUtils.getCurrentUserId().orElseThrow(
+                () -> new ServiceException(EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, "auth.accessToken.invalid")
+            );
+            ApiResponse<Void> userResponse = this.identityClient.validateInternalUserById(currentUser.getId(), true);
+            WareHouse wareHouse = this.wareHouseRepository.lockWareHouseById(request.getId()).orElseThrow(
+                () -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,"ware.house.not.found.id", Map.of("id", request.getId()))
+            );
+            wareHouse.getStatus().validateUpdateStatusAbility(request.getStatus(), wareHouseUpdateStatusErrorProvider, Map.of("status", wareHouse.getStatus()));
+            wareHouse.setStatus(request.getStatus());
+            return this.wareHouseMapper.toDto(this.wareHouseRepository.save(wareHouse));
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [updateWareHouseStatus] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
     
     private WareHouseResponse upSertWareHouse(WareHouseRequest request){
         try {
             UserInsideToken currentUser = SecurityUtils.getCurrentUserId().orElseThrow(
                 () -> new ServiceException(EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, "auth.accessToken.invalid")
             );
-            ApiResponse<UserResponse> userResponse = this.identityClient.getUserById(currentUser.getId());
-            if(!userResponse.isSuccess()){
-                throw new ServiceException(
-                    EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, 
-                    userResponse.getErrorCode()
-                );
-            }
-            UserResponse user = userResponse.getData();
-            if(user.getRole() == null || !List.of(roleAdmin, roleSeller).contains(user.getRole().getSlug().toUpperCase())){
-                throw new ServiceException(
-                    EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, 
-                    "auth.accessToken.invalid.role"
-                );
-            }
+            ApiResponse<Void> userResponse = this.identityClient.validateInternalUserById(currentUser.getId(), true);
             boolean isCreate = request.getId() == null;
             WareHouse wareHouse;
             if(isCreate){

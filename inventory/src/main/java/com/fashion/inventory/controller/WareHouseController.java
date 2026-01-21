@@ -19,9 +19,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fashion.inventory.common.annotation.ApiMessageResponse;
 import com.fashion.inventory.dto.request.WareHouseRequest;
 import com.fashion.inventory.dto.request.search.SearchRequest;
-import com.fashion.inventory.dto.response.AddressResponse;
 import com.fashion.inventory.dto.response.PaginationResponse;
 import com.fashion.inventory.dto.response.WareHouseResponse;
+import com.fashion.inventory.dto.response.internal.AddressResponse;
 import com.fashion.inventory.mapper.WareHouseMapper;
 import com.fashion.inventory.service.WareHouseService;
 
@@ -48,7 +48,7 @@ public class WareHouseController {
 
     @PostMapping("")
     @ApiMessageResponse("ware.house.success.create")
-    public ResponseEntity<WareHouseResponse> createAddress(
+    public ResponseEntity<WareHouseResponse> createWareHouse(
         @RequestBody @Validated(WareHouseRequest.Create.class) WareHouseRequest request
     ) throws Exception {
         return ResponseEntity.status(HttpStatus.CREATED).body(this.wareHouseService.createWareHouse(request));
@@ -56,15 +56,23 @@ public class WareHouseController {
 
     @PutMapping("")
     @ApiMessageResponse("ware.house.success.update")
-    public ResponseEntity<WareHouseResponse> updateAddress(
+    public ResponseEntity<WareHouseResponse> updateWareHouse(
         @RequestBody @Validated(WareHouseRequest.Update.class) WareHouseRequest request
     ) {
         return ResponseEntity.ok(this.wareHouseService.updateWareHouse(request));
     }
+    
+    @PutMapping("/status")
+    @ApiMessageResponse("ware.house.success.update.status")
+    public ResponseEntity<WareHouseResponse> updateWareHouseStatus(
+        @RequestBody @Validated(WareHouseRequest.UpdateStatus.class) WareHouseRequest request
+    ) {
+        return ResponseEntity.ok(this.wareHouseService.updateWareHouseStatus(request));
+    }
 
     @GetMapping("/{id}")
     @ApiMessageResponse("ware.house.success.get.single")
-    public ResponseEntity<WareHouseResponse> getAddressById(
+    public ResponseEntity<WareHouseResponse> getWareHouseById(
         @PathVariable("id") UUID id
     ) {
         return ResponseEntity.ok(this.wareHouseService.getWareHouseById(id));

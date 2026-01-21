@@ -1,4 +1,4 @@
-package com.fashion.inventory.dto.response;
+package com.fashion.inventory.dto.response.internal;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fashion.inventory.common.enums.GenderEnum;
-import com.fashion.inventory.dto.response.AddressResponse.InnerAddressResponse;
-import com.fashion.inventory.dto.response.RoleResponse.InnerRoleResponse;
+import com.fashion.inventory.dto.response.internal.AddressResponse.InnerAddressResponse;
+import com.fashion.inventory.dto.response.internal.RoleResponse.InnerRoleResponse;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

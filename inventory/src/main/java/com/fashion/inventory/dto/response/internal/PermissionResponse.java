@@ -1,4 +1,4 @@
-package com.fashion.inventory.dto.response;
+package com.fashion.inventory.dto.response.internal;
 
 import java.time.Instant;
 

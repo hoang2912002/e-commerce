@@ -1,9 +1,9 @@
-package com.fashion.inventory.dto.response;
+package com.fashion.inventory.dto.response.internal;
 
 import java.time.Instant;
 import java.util.List;
 
-import com.fashion.inventory.dto.response.PermissionResponse.InnerPermissionResponse;
+import com.fashion.inventory.dto.response.internal.PermissionResponse.InnerPermissionResponse;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;

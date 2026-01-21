@@ -1,5 +1,6 @@
 package com.fashion.inventory.common.enums;
 
+import java.util.List;
 import java.util.Map;
 
 import com.fashion.inventory.common.provider.WareHouseErrorProvider;
@@ -16,6 +17,23 @@ public enum WareHouseStatusEnum {
         boolean isValid = switch (this) {
             case PENDING -> true;
             case ACTIVE, INACTIVE, CLOSED -> false;
+        };
+
+        if (!isValid) {
+            throw new ServiceException(
+                errorProvider.getError(this),
+                errorProvider.getMessageCode(this),
+                params
+            );
+        }
+    }
+
+    public void validateUpdateStatusAbility(WareHouseStatusEnum wareHouseStatusEnum, WareHouseErrorProvider errorProvider, Map<String, Object> params){
+        boolean isValid = switch (this) {
+            case PENDING -> List.of(WareHouseStatusEnum.ACTIVE, WareHouseStatusEnum.CLOSED).contains(wareHouseStatusEnum);
+            case INACTIVE -> List.of(WareHouseStatusEnum.ACTIVE, WareHouseStatusEnum.CLOSED).contains(wareHouseStatusEnum);
+            case ACTIVE -> List.of(WareHouseStatusEnum.INACTIVE, WareHouseStatusEnum.CLOSED).contains(wareHouseStatusEnum);
+            case CLOSED -> false;
         };
 
         if (!isValid) {

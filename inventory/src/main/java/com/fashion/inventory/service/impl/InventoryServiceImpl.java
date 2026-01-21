@@ -1,0 +1,331 @@
+package com.fashion.inventory.service.impl;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fashion.inventory.common.enums.EnumError;
+import com.fashion.inventory.common.enums.InventoryTransactionReferenceTypeEnum;
+import com.fashion.inventory.common.enums.InventoryTransactionTypeEnum;
+import com.fashion.inventory.common.enums.WareHouseStatusEnum;
+import com.fashion.inventory.common.util.AsyncUtils;
+import com.fashion.inventory.common.util.MessageUtil;
+import com.fashion.inventory.dto.request.InventoryRequest;
+import com.fashion.inventory.dto.request.InventoryRequest.BaseInventoryRequest;
+import com.fashion.inventory.dto.request.search.SearchRequest;
+import com.fashion.inventory.dto.response.InventoryResponse;
+import com.fashion.inventory.dto.response.PaginationResponse;
+import com.fashion.inventory.dto.response.internal.ApprovalHistoryResponse;
+import com.fashion.inventory.dto.response.internal.ProductResponse;
+import com.fashion.inventory.dto.response.internal.ProductSkuResponse;
+import com.fashion.inventory.dto.response.internal.RoleResponse;
+import com.fashion.inventory.dto.response.internal.UserResponse;
+import com.fashion.inventory.dto.response.internal.ProductSkuResponse.InnerProductSkuResponse;
+import com.fashion.inventory.dto.response.internal.UserResponse.UserInsideToken;
+import com.fashion.inventory.dto.response.kafka.ProductApprovedEvent;
+import com.fashion.inventory.entity.Inventory;
+import com.fashion.inventory.entity.InventoryTransaction;
+import com.fashion.inventory.entity.WareHouse;
+import com.fashion.inventory.exception.ServiceException;
+import com.fashion.inventory.intergration.IdentityClient;
+import com.fashion.inventory.intergration.ProductClient;
+import com.fashion.inventory.mapper.InventoryMapper;
+import com.fashion.inventory.repository.InventoryRepository;
+import com.fashion.inventory.repository.InventoryTransactionRepository;
+import com.fashion.inventory.repository.WareHouseRepository;
+import com.fashion.inventory.security.SecurityUtils;
+import com.fashion.inventory.service.InventoryService;
+
+import jakarta.persistence.criteria.CriteriaBuilder.In;
+import lombok.RequiredArgsConstructor;
+import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
+@Service
+@Slf4j
+@RequiredArgsConstructor
+@FieldDefaults(level = lombok.AccessLevel.PRIVATE)
+public class InventoryServiceImpl implements InventoryService {
+    final InventoryRepository inventoryRepository;
+    final InventoryMapper inventoryMapper;
+    final IdentityClient identityClient;
+    final ProductClient productClient;
+    final WareHouseRepository wareHouseRepository;
+    final MessageUtil messageUtil;
+    final InventoryTransactionRepository inventoryTransactionRepository;
+
+    @Value("${role.admin}")
+    String roleAdmin;
+    
+    @Value("${role.seller}")
+    String roleSeller;
+    
+    @Override
+    public List<InventoryResponse> findRawListInventoryBySku(List<UUID> skuIds) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'findRawListInventoryBySku'");
+    }
+
+    @Override
+    public boolean existsByProductSkuId(UUID id) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'existsByProductSkuId'");
+    }
+
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public void adjustmentsStockAfterProductApproved(List<ProductApprovedEvent> events, UUID eventId) {
+        log.info("INVENTORY-SERVICE: [adjustmentsStockAfterProductApproved] Start import/adjustment inventory");
+        try {
+            if (events == null || events.isEmpty()) return;
+            if(this.inventoryTransactionRepository.existsByEventIdAndReferenceTypeAndReferenceId(eventId,InventoryTransactionReferenceTypeEnum.PRODUCT,events.getFirst().getProductId())){
+                log.warn("INVENTORY-SERVICE: [adjustmentsStockAfterProductApproved] Skip duplicated product approved eventId, productId={}", events.getFirst().getProductId(), eventId);
+                return;
+            }
+            Locale locale = Locale.ENGLISH;
+            List<UUID> skuIds = events.stream()
+                .map(ProductApprovedEvent::getProductSkuId)
+                .distinct()
+                .toList();
+            Map<UUID, Inventory> inventoryMap = inventoryRepository
+                .lockInventoryBySkuId(skuIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Inventory::getProductSkuId,
+                        Function.identity(),
+                        (a,b) -> a)
+                );
+            // Map<UUID, WareHouse> invenWhActive = inventoryMap.values().stream().filter(i -> i.getWareHouse().getStatus().equals(WareHouseStatusEnum.ACTIVE)).collect(Collectors.toMap(Inventory::getId, i -> i.getWareHouse(), (a,b) -> a));
+            WareHouse defaultWareHouse = this.wareHouseRepository.findFirstByStatusOrderByCreatedAtDesc(WareHouseStatusEnum.ACTIVE);
+            List<Inventory> inventoriesToSave = new ArrayList<>();
+            List<InventoryTransaction> transactionsToSave = new ArrayList<>();
+            for (ProductApprovedEvent event : events) {
+                UUID skuId = event.getProductSkuId();
+
+                Inventory inventory = inventoryMap.get(skuId);
+                boolean isNewInventory = inventory == null;
+                WareHouse wareHouse;
+                if (isNewInventory) {
+                    wareHouse = defaultWareHouse;
+                } else {
+                    if (inventory == null || inventory.getWareHouse() == null) {
+                        throw new ServiceException(
+                            EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_STATUS,
+                            "ware.house.notExisted.status.active"
+                        );
+                    }
+                    wareHouse = inventory.getWareHouse();
+                }
+                int before = 0;
+                int after = 0;
+                if (isNewInventory) {
+                    before = 0;
+                    after = event.getQuantityAvailable();
+                    
+                    this.validateQuantity(after, skuId);
+
+                    inventory = Inventory.builder()
+                        .activated(true)
+                        .productId(event.getProductId())
+                        .productSkuId(skuId)
+                        .quantityAvailable(after)
+                        .quantityReserved(0)
+                        .quantitySold(0)
+                        .wareHouse(wareHouse)
+                        .build();
+                } else {
+                    before = inventory.getQuantityAvailable() == null
+                        ? 0
+                        : inventory.getQuantityAvailable();
+
+                    after = before + event.getQuantityAvailable();
+                    this.validateQuantity(after, skuId);
+
+                    inventory.setActivated(true);
+                    inventory.setQuantityAvailable(after);
+                }
+                inventoriesToSave.add(inventory);
+
+                InventoryTransactionTypeEnum type = isNewInventory
+                    ? InventoryTransactionTypeEnum.IMPORT
+                    : InventoryTransactionTypeEnum.ADJUSTMENT;
+
+                String messageKey = isNewInventory
+                    ? "inventory.transaction.import.product"
+                    : "inventory.transaction.adjustment.product";
+
+                String note = messageUtil.getMessage(messageKey, skuId, locale);
+                // Build transaction
+                transactionsToSave.add(InventoryTransaction.builder()
+                    .activated(true)
+                    .productSkuId(skuId)
+                    .beforeQuantity(before)
+                    .afterQuantity(after)
+                    .quantityChange(event.getQuantityAvailable())
+                    .type(type)
+                    .referenceType(InventoryTransactionReferenceTypeEnum.PRODUCT)
+                    .referenceId(event.getProductId())
+                    .note(note)
+                    .eventId(eventId)
+                    .wareHouse(wareHouse)
+                    .build()
+                );
+            }
+            if(!inventoriesToSave.isEmpty()){
+                this.inventoryRepository.saveAll(inventoriesToSave);
+            }
+            if(!transactionsToSave.isEmpty()){
+                this.inventoryTransactionRepository.saveAll(transactionsToSave);
+            }
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [adjustmentsStockAfterProductApproved] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public InventoryResponse createInventory(InventoryRequest inventory) {
+        log.info("INVENTORY-SERVICE: [createInventory] Start create inventory");
+        try {
+            return this.upSertInventory(new Inventory(),inventory);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [createInventory] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    public InventoryResponse updateInventory(InventoryRequest inventory) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'updateInventory'");
+    }
+
+    @Override
+    public InventoryResponse getInventoryById(UUID id) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getInventoryById'");
+    }
+
+    @Override
+    public PaginationResponse<List<InventoryResponse>> getAllInventories(SearchRequest request) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'getAllInventories'");
+    }
+
+    @Override
+    public List<Inventory> findRawInventoriesByProductId(UUID productId) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'findRawInventoriesByProductId'");
+    }
+
+    @Override
+    public Inventory findRawInventoryByProductIdAndProductSkuId(UUID productId, UUID productSkuId) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'findRawInventoryByProductIdAndProductSkuId'");
+    }
+
+    @Override
+    public void deleteInventoryById(UUID id) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'deleteInventoryById'");
+    }
+
+    @Override
+    public void changeQuantityUse(UUID productId, UUID productSku, Integer quantity,
+            boolean decreaseQuantityAvailable) {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'changeQuantityUse'");
+    }
+    
+    private InventoryResponse upSertInventory(Inventory inventory, InventoryRequest inventoryRequest){
+        try {
+            boolean isCreate = inventory.getId().equals(null);
+            UserInsideToken currentUser = SecurityUtils.getCurrentUserId().orElseThrow(
+                () -> new ServiceException(EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, "auth.accessToken.invalid")
+            );
+            WareHouse wareHouse = this.wareHouseRepository.findById(inventory.getWareHouse().getId()).orElseThrow(
+                () -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID, "ware.house.not.found.id", Map.of("wareHouseId", inventoryRequest.getWarehouse().getId()))
+            );
+            CompletableFuture<Void> userFuture = (currentUser.getId() != null)
+                ? AsyncUtils.fetchAsync(() -> identityClient.validateInternalUserById(currentUser.getId(), true))
+                : CompletableFuture.completedFuture(null);
+            
+            CompletableFuture<Void> productFuture = (inventory.getProductId() != null)
+                ? AsyncUtils.fetchAsync(() -> productClient.validateInternalProductById(inventory.getProductId(), inventory.getProductSkuId()))
+                : CompletableFuture.completedFuture(null);
+            
+            CompletableFuture<Void> approvalHistoryFuture = (inventory.getProductId() != null)
+                ? AsyncUtils.fetchAsync(() -> productClient.validateInternalApprovalHistoryByRequestId(inventory.getProductId()))
+                : CompletableFuture.completedFuture(null);
+            
+            try {
+                CompletableFuture.allOf(userFuture, productFuture, approvalHistoryFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
+            
+            this.checkExistedInventory(inventoryRequest.getProductId(), inventoryRequest.getProductSkuId(), inventoryRequest.getWarehouse().getId(), inventoryRequest.getId());
+            
+            return null;
+            
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [upSertInventory] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    private void checkExistedInventory(UUID productId, UUID productSkuId, UUID wareHouseId, UUID excludedId){
+        try {
+            Optional<Inventory> optional;
+            if(excludedId.equals(null)){
+                optional = this.inventoryRepository.findDuplicateForCreate(productId,productSkuId,wareHouseId);
+            } else {
+                optional = this.inventoryRepository.findDuplicateForUpdate(productId,productSkuId,wareHouseId,excludedId);
+            }
+            optional.ifPresent(i -> {
+                throw new ServiceException(EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_PRODUCT_PRODUCT_SKU_WARE_HOUSE,"inventory.not.found.productId.productSkuId.wareHouseId", Map.of(
+                    "productId",productId,
+                    "productSKuId", productSkuId,
+                    "wareHouseId", wareHouseId
+                ));
+            });
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [checkExistedInventory] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    private void validateQuantity(int quantity, UUID skuId) {
+        if (quantity < 0) {
+            throw new ServiceException(
+                    EnumError.INVENTORY_INVENTORY_INVALID_QUANTITY_AVAILABLE,
+                    "inventory.quantityAvailable.notFormat",
+                    Map.of("sku", skuId)
+            );
+        }
+    }
+
+}

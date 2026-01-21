@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
 import com.fashion.inventory.common.annotation.ApiMessageResponse;
+import com.fashion.inventory.common.annotation.SkipWrapResponse;
 import com.fashion.inventory.common.util.MessageUtil;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,7 +33,7 @@ public class ResponseWrapper implements ResponseBodyAdvice<Object>{
 
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
-        return true;
+        return !returnType.hasMethodAnnotation(SkipWrapResponse.class);
     }
     
     @Override

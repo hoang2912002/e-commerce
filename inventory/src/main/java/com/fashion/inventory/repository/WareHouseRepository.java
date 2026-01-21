@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
+import com.fashion.inventory.common.enums.WareHouseStatusEnum;
 import com.fashion.inventory.entity.WareHouse;
 
 import jakarta.persistence.LockModeType;
@@ -35,4 +36,6 @@ public interface WareHouseRepository extends JpaRepository<WareHouse, UUID>, Jpa
         @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
     })
     Optional<WareHouse> lockWareHouseById(@Param("id") UUID id);
+
+    WareHouse findFirstByStatusOrderByCreatedAtDesc(WareHouseStatusEnum status);
 }

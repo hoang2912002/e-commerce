@@ -11,6 +11,7 @@ import com.fashion.inventory.dto.response.WareHouseResponse;
 public interface WareHouseService {
     PaginationResponse<List<WareHouseResponse>> getAllWareHouses(SearchRequest request);
     WareHouseResponse createWareHouse(WareHouseRequest request);
+    WareHouseResponse updateWareHouseStatus(WareHouseRequest request);
     WareHouseResponse updateWareHouse(WareHouseRequest request);
     WareHouseResponse getWareHouseById(UUID id);
     void deleteWareHouseById(UUID id);
