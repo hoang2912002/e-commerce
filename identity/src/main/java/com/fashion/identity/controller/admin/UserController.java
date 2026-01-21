@@ -84,4 +84,15 @@ public class UserController {
     ){
         this.userService.deleteUserById(id);
     }
+
+    //Internal endpoint
+    @GetMapping("/internal/validate-internal-user-role-by-id")
+    @ApiMessageResponse("user.success.get.single")
+    public ResponseEntity<Void> validateInternalUserById(
+        @RequestParam UUID id,
+        @RequestParam Boolean isCheckRole
+    ) {
+        this.userService.validateInternalUserById(id,isCheckRole);
+        return ResponseEntity.noContent().build();
+    }
 }

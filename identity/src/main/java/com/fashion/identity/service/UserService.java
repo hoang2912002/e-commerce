@@ -9,7 +9,6 @@ import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.entity.User;
 
 public interface UserService {
-    User findRawUserById(Object id);
     User lockUserById(Object id);
     User handleGetUserByUserName(String userName);
     User updateRefreshTokenUserByUserName(String userName, String refreshToken);
@@ -18,4 +17,5 @@ public interface UserService {
     UserResponse getUserById(UUID id);
     PaginationResponse<List<UserResponse>> getAllUsers(UserSearchRequest request);
     void deleteUserById(UUID id);
+    void validateInternalUserById(UUID id, Boolean isCheckRole);
 }

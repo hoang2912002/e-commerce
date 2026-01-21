@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -51,22 +52,23 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class UserServiceImpl implements UserService{
-    UserRepository userRepository;
-    UserMapper userMapper;
-    PasswordEncoder passwordEncoder;
-    AddressService addressService;
-    RoleRepository roleRepository;
-    IdentityServiceProducer identityProducer;
+    final UserRepository userRepository;
+    final UserMapper userMapper;
+    final PasswordEncoder passwordEncoder;
+    final AddressService addressService;
+    final RoleRepository roleRepository;
+    final IdentityServiceProducer identityProducer;
 
-    @Override
-    @Transactional(readOnly = true)
-    public User findRawUserById(Object id) {
-        return this.userRepository.findById(ConvertUuidUtil.toUuid(id))
-                .orElseThrow(() -> new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID, "user.not.found.id",Map.of("id", id)));
-    }
-
+    @Value("${role.slug.admin}")
+    String roleAdmin;
+    
+    @Value("${role.slug.user}")
+    String roleUser;
+    
+    @Value("${role.slug.seller}")
+    String roleSeller;
     @Override
     @Transactional(rollbackFor = ServiceException.class)
     public User lockUserById(Object id){
@@ -222,11 +224,30 @@ public class UserServiceImpl implements UserService{
     @Override
     public UserResponse getUserById(UUID id){
         try {
-            final User user = this.findRawUserById(id);
-            if(Objects.isNull(user)){
-                throw new ServiceException(EnumError.IDENTITY_USER_ERR_NOT_FOUND_ID, "user.not.found.id",Map.of("id", id));
-            }
+            final User user = this.userRepository.findById(ConvertUuidUtil.toUuid(id))
+                .orElseThrow(() -> new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID, "user.not.found.id",Map.of("id", id)));
             return userMapper.toDto(user);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public void validateInternalUserById(UUID id, Boolean isCheckRole){
+        try {
+            User user = this.userRepository.findById(ConvertUuidUtil.toUuid(id))
+                .orElseThrow(() -> new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID, "user.not.found.id",Map.of("id", id)));
+            if(isCheckRole){
+                String userRole = user.getRole().getSlug();
+                if(!List.of(roleAdmin,roleSeller).contains(userRole)){
+                    throw new ServiceException(
+                    EnumError.IDENTITY_PERMISSION_ACCESS_DENIED,
+                    "permission.access.deny");
+                }
+            }
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
