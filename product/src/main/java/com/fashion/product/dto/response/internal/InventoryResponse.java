@@ -1,9 +1,9 @@
-package com.fashion.product.dto.request;
+package com.fashion.product.dto.response.internal;
 
 import java.time.Instant;
 import java.util.UUID;
 
-import com.fashion.product.dto.request.ProductRequest.InnerProductRequest;
+import com.fashion.product.dto.response.internal.WareHouseResponse.InnerWareHouseResponse;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -13,29 +13,34 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Data
-@Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProductSkuRequest {
+public class InventoryResponse {
     UUID id;
-    String sku;
-    Double price;
-    Integer tempStock;
-    String thumbnail;
+    Integer quantityAvailable;
+    Integer quantityReserved;
+    Integer quantitySold;
+    UUID productId;
+    UUID productSkuId;
+    InnerWareHouseResponse warehouse;
+    Boolean activated;
     String createdBy;
     Instant createdAt;
     String updatedBy;
     Instant updatedAt;
-    Boolean activated;
-    InnerProductRequest product;
+    
 
     @Data
-    @Builder
     @AllArgsConstructor
     @NoArgsConstructor
+    @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class InnerProductSkuRequest {
+    public static class InnerInventoryResponse {
         UUID id;
+        Integer quantityAvailable;
+        Integer quantityReserved;
+        Integer quantitySold;
     }
 }

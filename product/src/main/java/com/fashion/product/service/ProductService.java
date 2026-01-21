@@ -16,4 +16,5 @@ public interface ProductService {
     PaginationResponse<List<ProductResponse>> getAllProduct(SearchRequest request);
     ProductResponse getProductById(UUID id);
     List<Product> findListProductById(List<UUID> ids);
+    void validateInternalProductById(UUID id, UUID skuId);
 }

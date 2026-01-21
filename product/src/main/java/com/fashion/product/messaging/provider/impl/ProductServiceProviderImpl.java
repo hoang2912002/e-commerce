@@ -1,14 +1,21 @@
 package com.fashion.product.messaging.provider.impl;
 
+import java.util.List;
 import java.util.UUID;
 
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.fashion.product.common.enums.EventType;
 import com.fashion.product.dto.response.kafka.EventMetaData;
 import com.fashion.product.dto.response.kafka.KafkaEvent;
+import com.fashion.product.dto.response.kafka.ProductApprovedEvent;
 import com.fashion.product.dto.response.kafka.ShopManagementAddressEvent;
+import com.fashion.product.dto.response.kafka.ProductApprovedEvent.InternalProductApprovedEvent;
 import com.fashion.product.messaging.provider.ProductServiceProvider;
+import com.fashion.product.properties.KafkaTopicApprovalHistoryProperties;
 import com.fashion.product.properties.KafkaTopicShopManagementProperties;
 import com.fashion.product.service.KafkaService;
 
@@ -24,6 +31,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ProductServiceProviderImpl implements ProductServiceProvider{
     KafkaService kafkaService;
     KafkaTopicShopManagementProperties kafkaTopicShopManagementProperties;
+    KafkaTopicApprovalHistoryProperties kafkaTopicApprovalHistoryProperties;
 
     @Override
     public void produceShopManagementEventSuccess(ShopManagementAddressEvent addressData) {
@@ -38,6 +46,25 @@ public class ProductServiceProviderImpl implements ProductServiceProvider{
                 .version(1)
                 .build())
             .payload(addressData)
+            .build();
+        kafkaService.send(topic, message);
+    }
+
+    @Override
+    @Async("taskExecutor") // Chạy thread riêng để không block luồng chính
+    // phase = AFTER_COMMIT đảm bảo DB xong xuôi mới gửi tin nhắn
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void produceProductApprovedEventSuccess(InternalProductApprovedEvent event) {
+        var topic = kafkaTopicApprovalHistoryProperties.getApprovalHistoryApprovedProductSuccess();
+        log.info("PRODUCT-SERVICE: produceProductApprovedEventSuccess(): approval history approved successful for product to send event create inventory topic {}", topic);
+        KafkaEvent<List<ProductApprovedEvent>> message = KafkaEvent.<List<ProductApprovedEvent>>builder()
+            .metadata(EventMetaData.builder()
+                .eventId(UUID.randomUUID())
+                .eventType(EventType.APPROVAL_HISTORY_APPROVED.name())
+                .source("product-service")
+                .version(1)
+                .build())
+            .payload(event.getInventoriesData())
             .build();
         kafkaService.send(topic, message);
     }

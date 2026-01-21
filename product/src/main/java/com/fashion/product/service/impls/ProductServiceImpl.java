@@ -30,6 +30,7 @@ import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.OptionValueResponse;
 import com.fashion.product.dto.response.PaginationResponse;
 import com.fashion.product.dto.response.ProductResponse;
+import com.fashion.product.dto.response.ProductSkuResponse.InnerProductSkuResponse;
 import com.fashion.product.entity.Category;
 import com.fashion.product.entity.OptionValue;
 import com.fashion.product.entity.Product;
@@ -164,6 +165,27 @@ public class ProductServiceImpl implements ProductService{
             return this.productRepository.findAllByIdIn(ids);
         } catch (Exception e) {
             log.error("PRODUCT-SERVICE: [findListProductById] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validateInternalProductById(UUID id, UUID skuId){
+        try {
+            Product product = this.productRepository.findById(id).orElseThrow(
+                () -> new ServiceException(EnumError.PRODUCT_PRODUCT_ERR_NOT_FOUND_ID,"product.not.found.id", Map.of("id", id))
+            );
+            List<UUID> productSkuIds = product.getProductSkus().stream().map(ProductSku::getId).distinct().toList();
+            if(!productSkuIds.contains(skuId)){
+                throw new ServiceException(
+                EnumError.PRODUCT_PRODUCT_SKU_ERR_NOT_FOUND_ID,
+                "product.sku.not.found.id");
+            }
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [validateInternalProductById] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }

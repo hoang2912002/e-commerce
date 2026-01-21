@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 import com.fashion.product.dto.request.ApprovalMasterRequest.InnerApprovalMasterRequest;
+import com.fashion.product.dto.response.ApprovalMasterResponse.InnerApprovalMasterResponse;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -23,7 +24,7 @@ public class ApprovalHistoryResponse {
     LocalDateTime approvedAt;
     UUID requestId; 
     String note;
-    InnerApprovalMasterRequest approvalMaster;
+    InnerApprovalMasterResponse approvalMaster;
     Boolean activated;
     Instant createdAt;
     Instant updatedAt;

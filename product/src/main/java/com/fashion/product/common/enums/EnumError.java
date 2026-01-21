@@ -47,6 +47,9 @@ public enum EnumError {
     PRODUCT_PRODUCT_ERR_NOT_FOUND_SHOP_MANAGEMENT("PRODUCT-PRODUCT-NOT-FOUND-SHOP-MANAGEMENT","The user managing this shop management has no product",HttpStatus.CONFLICT),
     PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING_ADJUSTMENT("PRODUCT-PRODUCT-DTE-APPROVAL-PENDING-ADJUSTMENT-CANNOT-UPDATE","Product already exists with the adjustment pending/approval history.",HttpStatus.CONFLICT),
 
+    //----------------Product-------------------
+    PRODUCT_PRODUCT_SKU_ERR_NOT_FOUND_ID("PRODUCT-PRODUCT-SKU-ERR-NOT-FOUND-ID","Not found product sku with id:",HttpStatus.BAD_REQUEST),
+
     //----------------ShopManagement-------------------
     PRODUCT_SHOP_MANAGEMENT_DATA_EXISTED_NAME("PRODUCT-SHOP-MANAGEMENT-DATA-EXISTED-NAME","Shop management already exists with Name", HttpStatus.CONFLICT),
     PRODUCT_SHOP_MANAGEMENT_ERR_NOT_FOUND_ID("PRODUCT-SHOP-MANAGEMENT-NOT-FOUND-ID","Not found shop management with id:",HttpStatus.CONFLICT),
@@ -75,6 +78,7 @@ public enum EnumError {
     PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY("PRODUCT-APPROVAL-MASTER-NOT-FOUND-ENTITY","Not found approval master with EntityType:",HttpStatus.CONFLICT),
 
     //----------------ApprovalHistory-------------------
+    PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_LAST_PRODUCT("PRODUCT-APPROVAL-HISTORY-NOT-FOUND-LAST-PRODUCT","Not found approval history with product id:",HttpStatus.CONFLICT),
     PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID("PRODUCT-APPROVAL-HISTORY-NOT-FOUND-ID","Not found approval history with id:",HttpStatus.CONFLICT),
     PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_LAST_SHOP_MANAGEMENT("PRODUCT-APPROVAL-HISTORY-NOT-FOUND-LAST-SHOP-MANAGEMENT","The Shop management does not have an approval history, please submit it with PENDING status.",HttpStatus.CONFLICT),
     PRODUCT_APPROVAL_HISTORY_CURRENT_NOT_LATEST("PRODUCT-APPROVAL-HISTORY-CURRENT-NOT-LATEST","The approval history is not the latest.", HttpStatus.CONFLICT),

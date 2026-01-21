@@ -1,6 +1,7 @@
 package com.fashion.product.controller;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -14,9 +15,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.product.common.annotation.ApiMessageResponse;
+import com.fashion.product.common.annotation.InternalEndpoint;
 import com.fashion.product.dto.request.ApprovalHistoryRequest;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.ApprovalHistoryResponse;
@@ -81,6 +84,17 @@ public class ApprovalHistoryController {
     public ResponseEntity<Void> deleteApprovalHistoryById(
         @PathVariable("id") UUID id
     ) {
+        return ResponseEntity.noContent().build();
+    }
+
+    //-----------------Internal Endpoint---------------------------
+    @InternalEndpoint
+    @GetMapping("/internal/validate-internal-approval-history-by-requestId")
+    @ApiMessageResponse("approval.history.success.get.single")
+    public ResponseEntity<Void> validateInternalApprovalHistoryByRequestId(
+        @RequestParam UUID requestId 
+    ) {
+        this.approvalHistoryService.validateInternalApprovalHistoryByRequestId(requestId);
         return ResponseEntity.noContent().build();
     }
 }

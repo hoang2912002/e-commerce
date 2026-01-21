@@ -48,6 +48,8 @@ import com.fashion.product.repository.ProductRepository;
 import com.fashion.product.repository.ShopManagementRepository;
 import com.fashion.product.security.SecurityUtils;
 import com.fashion.product.service.ApprovalHistoryService;
+import com.fashion.product.service.ProductSkuService;
+import com.fashion.product.service.provider.ApprovalHistoryInventoryErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistoryProductErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistorySmErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistoryUpSertErrorProvider;
@@ -67,10 +69,12 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     ApprovalHistoryMapper approvalHistoryMapper;
     IdentityClient identityClient;
     ProductRepository productRepository;
+    ProductSkuService productSkuService;
     ShopManagementRepository shopManagementRepository;
-    ApprovalHistoryUpSertErrorProvider HISTORY_CREATE_UPDATE_ERROR_PROVIDER;
-    ApprovalHistoryProductErrorProvider HISTORY_PRODUCT_ERROR_PROVIDER;
-    ApprovalHistorySmErrorProvider HISTORY_SHOP_MANAGEMENT_ERROR_PROVIDER;
+    ApprovalHistoryUpSertErrorProvider historyCreateUpdateErrorProvider;
+    ApprovalHistoryProductErrorProvider historyProductErrorProvider;
+    ApprovalHistorySmErrorProvider historyShopManagementErrorProvider;
+    ApprovalHistoryInventoryErrorProvider historyInventoryErrorProvider;
 
     public final static String ENTITY_TYPE_PRODUCT = "PRODUCT";
     public final static String ENTITY_TYPE_INVENTORY = "INVENTORY";
@@ -108,7 +112,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             if(validatedEntity instanceof Product product && approvalMaster.getStatus().equals(ApprovalMasterEnum.APPROVED)
             ){
                 // Tạo tồn kho cho sản phẩm
-                // this.productSkuService.validateAndMapSkusToInventoryRequests(product);
+                this.productSkuService.validateAndMapSkuToInventoryRequests(product);
             }
             return approvalHistoryMapper.toDto(saved);
         } catch (ServiceException e) {
@@ -269,6 +273,22 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'checkApprovalHistoryForUpSertOrder'");
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validateInternalApprovalHistoryByRequestId(UUID requestId){
+        try {
+            ApprovalHistory finalApproval = this.approvalHistoryRepository.findFirstByRequestIdOrderByApprovedAtDesc(requestId).orElseThrow(
+                () -> new ServiceException(EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_LAST_PRODUCT,"approval.history.not.found.requestId", Map.of("productId", requestId))
+            );  
+            finalApproval.getApprovalMaster().getStatus().validateAbilityUpsertInventory(historyInventoryErrorProvider,Map.of("productId", requestId));
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [getAllInternalApprovalHistoryByRequestId] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
     
 
     private ApprovalMaster getApprovalMaster(ApprovalHistory approvalHistory, String entityType) {
@@ -403,7 +423,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                     );
                 }
             } else {
-                currentStatus.validateTransition(status, HISTORY_CREATE_UPDATE_ERROR_PROVIDER, errorParams);
+                currentStatus.validateTransition(status, historyCreateUpdateErrorProvider, errorParams);
 
             }
             return product;
@@ -443,7 +463,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                     );
                 }
             } else {
-                currentStatus.validateTransition(status, HISTORY_CREATE_UPDATE_ERROR_PROVIDER, errorParams);
+                currentStatus.validateTransition(status, historyCreateUpdateErrorProvider, errorParams);
 
             }
             return shopManagement;
@@ -482,7 +502,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             // TRƯỜNG HỢP 1: TẠO MỚI (productId == null)
             if (isCreate) {
                 lastHistoryOpt.ifPresent(h -> h.getApprovalMaster().getStatus()
-                    .validateCreateAbility(HISTORY_PRODUCT_ERROR_PROVIDER, errorParams));
+                    .validateCreateAbility(historyProductErrorProvider, errorParams));
 
                 this.createApprovalHistory(
                     buildHistory(null, pendingMaster, product.getId(), "Create new approval request"), 
@@ -546,7 +566,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             Map<String, Object> errorParams = Map.of("name", shop.getName());
             return lastHistoryOpt.map(lastHistory -> {
                 ApprovalMasterEnum lastStatus = lastHistory.getApprovalMaster().getStatus();
-                lastStatus.validateCrUpAbility(nextMaster.getStatus(),HISTORY_SHOP_MANAGEMENT_ERROR_PROVIDER,errorParams);
+                lastStatus.validateCrUpAbility(nextMaster.getStatus(),historyShopManagementErrorProvider,errorParams);
 
                 if(lastStatus == ApprovalMasterEnum.ADJUSTMENT && 
                     nextMaster.getStatus().equals(ApprovalMasterEnum.FINISHED_ADJUSTMENT)

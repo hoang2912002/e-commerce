@@ -59,5 +59,7 @@ public class ShopManagementResponse {
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InnerShopManagementResponse {
         UUID id;
+        String name;
+        String slug;
     }
 }

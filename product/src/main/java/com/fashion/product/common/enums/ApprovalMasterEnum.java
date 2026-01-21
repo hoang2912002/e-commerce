@@ -79,4 +79,19 @@ public enum ApprovalMasterEnum {
             );
         }
     }
+
+    //Check approval product for create/update inventory
+    public void validateAbilityUpsertInventory(ApprovalErrorProvider errorProvider, Map<String, Object> params){
+        boolean isValid = switch (this) {
+            case PENDING, NEEDS_ADJUSTMENT, FINISHED_ADJUSTMENT, REJECTED, ADJUSTMENT -> false;
+            case APPROVED -> true;
+        };
+        if (!isValid) {
+            throw new ServiceException(
+                errorProvider.getError(this),
+                errorProvider.getMessageCode(this),
+                params
+            );
+        }
+    }
 }

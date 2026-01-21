@@ -16,7 +16,10 @@ import com.fashion.product.entity.Product;
     componentModel = "spring",
     uses = {
         CategoryMapper.class,
-        ShopManagementMapper.class
+        ShopManagementMapper.class,
+        OptionMapper.class,
+        ProductSkuMapper.class,
+        OptionValueMapper.class
     }
 )
 public interface ProductMapper extends EntityMapper<ProductResponse,Product, InnerProductResponse, ProductRequest>{

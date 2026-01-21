@@ -38,4 +38,5 @@ public interface ApprovalHistoryRepository extends JpaRepository<ApprovalHistory
 
     
     Optional<ApprovalHistory> findFirstByRequestIdAndApprovalMasterIdInOrderByApprovedAtDesc(UUID requestId, List<UUID> approvalMasterIds);
+    Optional<ApprovalHistory> findFirstByRequestIdOrderByApprovedAtDesc(UUID requestId);
 }

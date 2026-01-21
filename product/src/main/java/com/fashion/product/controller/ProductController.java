@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.product.common.annotation.ApiMessageResponse;
+import com.fashion.product.common.annotation.InternalEndpoint;
 import com.fashion.product.dto.request.ProductRequest;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.PaginationResponse;
@@ -75,5 +77,17 @@ public class ProductController {
         @PathVariable("id") UUID id
     ){
         return ResponseEntity.ok(null);
+    }
+
+    //------------------Internal endpoint-----------------------
+    @InternalEndpoint
+    @GetMapping("/internal/validate-internal-product-product-sku")
+    @ApiMessageResponse("product.success.internal.get.single")
+    public ResponseEntity<Void> validateInternalProductById(
+        @RequestParam UUID productId,
+        @RequestParam UUID productSkuId
+    ) {
+        this.productService.validateInternalProductById(productId,productSkuId);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -22,4 +22,5 @@ public interface ApprovalHistoryService {
     );
     boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval);
     boolean checkApprovalHistoryForUpSertOrder(Product product);
+    void validateInternalApprovalHistoryByRequestId(UUID requestId);
 }
