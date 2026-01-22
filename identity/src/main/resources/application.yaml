@@ -2,6 +2,25 @@ server:
   port: 8080
   servlet:
     context-path: /identity
+service:
+  identity:
+    url: http://localhost:8080/identity
+    name: identity-service
+  product:
+    url: http://localhost:8081/product
+    name: product-service
+  order:
+    url: http://localhost:8082/order
+    name: order-service
+  inventory:
+    url: http://localhost:8083/inventory
+    name: inventory-service
+  notification:
+    url: http://localhost:8086/notification
+    name: notification-service
+  resource:
+    url: http://localhost:8087/resource
+    name: resource-service
 spring:
   application:
     name: identity-service
