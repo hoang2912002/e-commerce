@@ -2,6 +2,25 @@ server:
   port: 8087
   servlet:
     context-path: /resource
+service:
+  identity:
+    url: http://localhost:8080/identity
+    name: identity-service
+  product:
+    url: http://localhost:8081/product
+    name: product-service
+  order:
+    url: http://localhost:8082/order
+    name: order-service
+  inventory:
+    url: http://localhost:8083/inventory
+    name: inventory-service
+  notification:
+    url: http://localhost:8086/notification
+    name: notification-service
+  resource:
+    url: http://localhost:8087/resource
+    name: resource-service
 spring:
   application:
     name: resource-service
@@ -19,20 +38,7 @@ spring:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer #key
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer #value
-      # key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
-      # value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
-        # delegate deserializer thực sự
-        # spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
-        # spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
-
-         # vì producer tắt type header
-        # spring.json.use.type.headers: true
-
-        # default type để deserialize
-        # spring.json.value.default.type: com.fashion.resource.dto.response.kafka.KafkaEvent
-
-        # cho phép deserialize class custom
         spring.json.trusted.packages: "*"
 
     # config producer
