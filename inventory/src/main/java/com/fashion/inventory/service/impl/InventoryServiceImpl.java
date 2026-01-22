@@ -13,6 +13,10 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,18 +24,25 @@ import com.fashion.inventory.common.enums.EnumError;
 import com.fashion.inventory.common.enums.InventoryTransactionReferenceTypeEnum;
 import com.fashion.inventory.common.enums.InventoryTransactionTypeEnum;
 import com.fashion.inventory.common.enums.WareHouseStatusEnum;
+import com.fashion.inventory.common.response.ApiResponse;
 import com.fashion.inventory.common.util.AsyncUtils;
 import com.fashion.inventory.common.util.MessageUtil;
+import com.fashion.inventory.common.util.PageableUtils;
+import com.fashion.inventory.common.util.SpecificationUtils;
 import com.fashion.inventory.dto.request.InventoryRequest;
 import com.fashion.inventory.dto.request.InventoryRequest.BaseInventoryRequest;
+import com.fashion.inventory.dto.request.search.SearchModel;
+import com.fashion.inventory.dto.request.search.SearchOption;
 import com.fashion.inventory.dto.request.search.SearchRequest;
 import com.fashion.inventory.dto.response.InventoryResponse;
 import com.fashion.inventory.dto.response.PaginationResponse;
+import com.fashion.inventory.dto.response.WareHouseResponse;
 import com.fashion.inventory.dto.response.internal.ApprovalHistoryResponse;
 import com.fashion.inventory.dto.response.internal.ProductResponse;
 import com.fashion.inventory.dto.response.internal.ProductSkuResponse;
 import com.fashion.inventory.dto.response.internal.RoleResponse;
 import com.fashion.inventory.dto.response.internal.UserResponse;
+import com.fashion.inventory.dto.response.internal.ProductResponse.InnerProductResponse;
 import com.fashion.inventory.dto.response.internal.ProductSkuResponse.InnerProductSkuResponse;
 import com.fashion.inventory.dto.response.internal.UserResponse.UserInsideToken;
 import com.fashion.inventory.dto.response.kafka.ProductApprovedEvent;
@@ -217,15 +228,118 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public InventoryResponse getInventoryById(UUID id) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getInventoryById'");
+        try {
+            Inventory inventory = this.inventoryRepository.findById(id).orElseThrow(
+                () -> new ServiceException(
+                    EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_ID,
+                    "inventory.not.found.id",
+                    Map.of("id", id)
+                )
+            );
+
+            ApiResponse<ProductResponse> productFuture = this.productClient.getInternalProductByProductId(inventory.getProductId());
+
+            ProductResponse productResponse = productFuture.getData();
+            
+            InnerProductSkuResponse foundSku = null;
+            if (productResponse != null && productResponse.getProductSkus() != null) {
+                foundSku = productResponse.getProductSkus().stream()
+                    .filter(p -> inventory.getProductSkuId().equals(p.getId()))
+                    .findFirst()
+                    .orElse(null);
+            }
+
+            InventoryResponse inventoryResponse = this.inventoryMapper.toDto(inventory);
+            
+            if (productResponse != null) {
+                inventoryResponse.setProduct(InnerProductResponse.builder()
+                .id(productResponse.getId())
+                .name(productResponse.getName())
+                .build());
+            }
+
+            if (foundSku != null) {
+                inventoryResponse.setProductSku(InnerProductSkuResponse.builder()
+                .id(foundSku.getId())
+                .sku(foundSku.getSku())
+                .price(foundSku.getPrice())
+                .stock(foundSku.getStock())
+                .build());
+            }
+
+            return inventoryResponse;
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [getInventoryById] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PaginationResponse<List<InventoryResponse>> getAllInventories(SearchRequest request) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getAllInventories'");
+        try {
+            SearchOption searchOption = request.getSearchOption();
+            SearchModel searchModel = request.getSearchModel();
+
+            List<String> allowedField = List.of("createdAt");
+
+            PageRequest pageRequest = PageableUtils.buildPageRequest(
+                searchOption.getPage(), 
+                searchOption.getSize(), 
+                searchOption.getSort(), 
+                allowedField, 
+                "createdAt", 
+                Sort.Direction.DESC
+            );
+            List<String> fields = SpecificationUtils.getFieldsSearch(Inventory.class);
+
+            Specification<Inventory> spec = new SpecificationUtils<Inventory>()
+                .equal("activated", searchModel.getActivated())
+                .likeAnyFieldIgnoreCase(searchModel.getQ(), fields)
+                .build();
+
+            Page<Inventory> inventories = this.inventoryRepository.findAll(spec, pageRequest);
+            
+            ApiResponse<List<ProductSkuResponse>> productSkusFuture = this.productClient.getInternalProductSkuByIds(
+                inventories.getContent().stream().map(Inventory::getProductSkuId).distinct().toList()
+            );
+            List<InventoryResponse> inventoryResponses = this.inventoryMapper.toDto(inventories.getContent());
+            if(!productSkusFuture.getData().isEmpty()){
+                Map<UUID, ProductSkuResponse> mapProductSku = productSkusFuture.getData().stream().collect(Collectors.toMap(ProductSkuResponse::getId, Function.identity(),(a,b) -> a));
+                inventoryResponses = inventoryResponses.stream().map(
+                    i -> {
+                        ProductSkuResponse p = mapProductSku.getOrDefault(i.getProductSkuId(), null);
+                        if(p != null){
+                            i.setProductSku(
+                                InnerProductSkuResponse.builder()
+                                .id(p.getId())
+                                .sku(p.getSku())
+                                .price(p.getPrice())
+                                .stock(p.getTempStock())
+                                .build()
+                            );
+                            i.setProduct(
+                                InnerProductResponse.builder()
+                                .id(p.getProduct().getId())
+                                .name(p.getProduct().getName())
+                                .build()
+                            );
+                        }
+                        return i;
+                    }
+                ).toList();
+            }
+            return PageableUtils.<Inventory, InventoryResponse>buildPaginationResponse(pageRequest, inventories, inventoryResponses);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [getAllInventories] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override

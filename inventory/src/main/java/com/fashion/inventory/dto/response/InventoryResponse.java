@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import com.fashion.inventory.dto.request.WareHouseRequest.InnerWareHouseRequest;
 import com.fashion.inventory.dto.response.WareHouseResponse.InnerWareHouseResponse;
+import com.fashion.inventory.dto.response.internal.ProductResponse.InnerProductResponse;
+import com.fashion.inventory.dto.response.internal.ProductSkuResponse.InnerProductSkuResponse;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -26,6 +28,8 @@ public class InventoryResponse {
     UUID productId;
     UUID productSkuId;
     InnerWareHouseResponse warehouse;
+    InnerProductResponse product;
+    InnerProductSkuResponse productSku;
     Boolean activated;
     String createdBy;
     Instant createdAt;

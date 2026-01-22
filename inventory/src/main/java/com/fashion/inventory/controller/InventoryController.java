@@ -36,46 +36,47 @@ import lombok.experimental.FieldDefaults;
 public class InventoryController {
     InventoryService inventoryService;
 
-    // @PostMapping("")
-    // @ApiMessageResponse("inventory.success.create")
-    // public ResponseEntity<InventoryResponse> createInventory(
-    //     @RequestBody @Validated(InventoryRequest.Create.class) InventoryRequest inventory
-    // ) {
-    //     return ResponseEntity.status(HttpStatus.CREATED).body(this.inventoryService.createInventory(inventory));
-    // }
+    @PostMapping("")
+    @ApiMessageResponse("inventory.success.create")
+    public ResponseEntity<InventoryResponse> createInventory(
+        @RequestBody @Validated(InventoryRequest.Create.class) InventoryRequest inventory
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(null);
+    }
 
-    // @PutMapping("")
-    // @ApiMessageResponse("inventory.success.update")
-    // public ResponseEntity<InventoryResponse> updateInventory(
-    //     @RequestBody @Validated(InventoryRequest.Update.class) InventoryRequest inventory    
-    // ) {
-    //     return ResponseEntity.status(HttpStatus.OK).body(this.inventoryService.updateInventory(inventory));
-    // }
+    @PutMapping("")
+    @ApiMessageResponse("inventory.success.update")
+    public ResponseEntity<InventoryResponse> updateInventory(
+        @RequestBody @Validated(InventoryRequest.Update.class) InventoryRequest inventory    
+    ) {
+        return ResponseEntity.status(HttpStatus.OK).body(null);
+    }
     
-    // @GetMapping("/{id}")
-    // @ApiMessageResponse("inventory.success.get.single")
-    // public ResponseEntity<InventoryResponse> getInventoryById(
-    //     @PathVariable("id") UUID id
-    // ) {
-    //     return ResponseEntity.status(HttpStatus.OK).body(this.inventoryService.getInventoryById(id));
-    // }
+    @GetMapping("/{id}")
+    @ApiMessageResponse("inventory.success.get.single")
+    public ResponseEntity<InventoryResponse> getInventoryById(
+        @PathVariable("id") UUID id
+    ) {
+        return ResponseEntity.status(HttpStatus.OK).body(this.inventoryService.getInventoryById(id));
+    }
     
-    // @GetMapping("")
-    // @ApiMessageResponse("inventory.success.get.all")
-    // public ResponseEntity<PaginationResponse<List<InventoryResponse>>> getAllInventories(
-    //     @ModelAttribute SearchRequest request
-    // ) {
-    //     return ResponseEntity.status(HttpStatus.OK).body(this.inventoryService.getAllInventories(request));
-    // }
+    @GetMapping("")
+    @ApiMessageResponse("inventory.success.get.all")
+    public ResponseEntity<PaginationResponse<List<InventoryResponse>>> getAllInventories(
+        @ModelAttribute SearchRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.OK).body(this.inventoryService.getAllInventories(request));
+    }
 
-    // @DeleteMapping("/{id}")
-    // @ApiMessageResponse("inventory.success.delete")
-    // public void deleteInventoryById(
-    //     @PathVariable("id") Long id
-    // ){
+    @DeleteMapping("/{id}")
+    @ApiMessageResponse("inventory.success.delete")
+    public ResponseEntity<Void> deleteInventoryById(
+        @PathVariable("id") Long id
+    ){
+        return ResponseEntity.noContent().build();
+    }
 
-    // }
-
+    //------------------Internal endpoint-----------------------
     @InternalEndpoint
     @GetMapping("/internal/{id}")
     @ApiMessageResponse("inventory.success.internal.get.single")
