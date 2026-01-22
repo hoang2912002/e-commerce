@@ -1,0 +1,78 @@
+server:
+  port: 8082
+  servlet:
+    context-path: /order
+service:
+  identity:
+    url: http://localhost:8080/identity
+    name: identity-service
+  product:
+    url: http://localhost:8081/product
+    name: product-service
+  order:
+    url: http://localhost:8082/order
+    name: order-service
+  inventory:
+    url: http://localhost:8083/inventory
+    name: inventory-service
+  notification:
+    url: http://localhost:8086/notification
+    name: notification-service
+  resource:
+    url: http://localhost:8087/resource
+    name: resource-service
+spring:
+  application:
+    name: order
+    language-default: en
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/e_order_service
+    username: postgres
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+  kafka:
+    bootstrap-servers: localhost:9094
+    # config consumer
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer #key
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer #value
+      properties:
+        # cho phép deserialize class custom
+        spring.json.trusted.packages: "*"
+    # config producer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    group:
+      permission: identity-permission-sync
+      identity: identity-group
+      product: product-group
+      order: order-group
+      inventory: inventory-group
+      payment: payment-group
+      shipping: shipping-group
+      notification: notification-group
+      resource: resource-group
+    # kafka topic (<domain>.<entity>.<event-type>)
+    topic:
+      identity:
+        permission-register: com.identity.permission_register
+        user-created: com.identity.user.created  # Gửi mail verify account khi tạo user
+        user-created-success: com.identity.user.created.success # Gửi mail thông báo đăng ký thành công
+      product:
+        shop-management-created-success: com.product.shop.management.created.success
+        approval-history-approved-product-success: com.identity.approval.history.approved.success # Phê duyệt sản phẩm thành công
+jwt:
+  base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
+  access-token-in-seconds: 86400
+  refresh-token-in-seconds: 2592000
+role:
+  admin: ADMIN
+  seller: SELLER
