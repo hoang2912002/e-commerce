@@ -295,12 +295,6 @@ public class ShopManagementServiceImpl implements ShopManagementService{
     }
 
     @Override
-    public ShopManagement findRawShopManagementById(UUID id) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'findRawShopManagementById'");
-    }
-
-    @Override
     public Map<String, Object[]> detectChangedFields(ShopManagement oldData, ShopManagement newData) {
         Map<String, Object[]> changes = new HashMap<>();
         try {

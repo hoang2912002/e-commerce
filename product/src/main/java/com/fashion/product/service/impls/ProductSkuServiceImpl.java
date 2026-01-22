@@ -3,6 +3,7 @@ package com.fashion.product.service.impls;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.context.ApplicationEventPublisher;
@@ -11,11 +12,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.product.common.enums.EnumError;
+import com.fashion.product.dto.response.ProductSkuResponse;
 import com.fashion.product.dto.response.kafka.ProductApprovedEvent;
 import com.fashion.product.dto.response.kafka.ProductApprovedEvent.InternalProductApprovedEvent;
 import com.fashion.product.entity.Product;
 import com.fashion.product.entity.ProductSku;
 import com.fashion.product.exception.ServiceException;
+import com.fashion.product.mapper.ProductSkuMapper;
 import com.fashion.product.messaging.provider.ProductServiceProvider;
 import com.fashion.product.repository.ProductSkuRepository;
 import com.fashion.product.service.KafkaService;
@@ -34,6 +37,7 @@ public class ProductSkuServiceImpl implements ProductSkuService{
     ProductSkuRepository productSkuRepository;
     ProductServiceProvider productServiceProvider;
     ApplicationEventPublisher applicationEventPublisher;
+    ProductSkuMapper productSkuMapper;
 
     @Override
     public void deleteProductSkuByListId(List<Long> ids) {
@@ -73,4 +77,17 @@ public class ProductSkuServiceImpl implements ProductSkuService{
         }
     }
     
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductSkuResponse> getInternalProductSkuByIds(List<UUID> ids){
+        try {
+            List<ProductSku> productSku = this.productSkuRepository.findAllById(ids);
+            return this.productSkuMapper.toDto(productSku);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [getInternalProductSkuByIds] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
 }

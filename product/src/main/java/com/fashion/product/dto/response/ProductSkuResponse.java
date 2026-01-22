@@ -1,7 +1,10 @@
 package com.fashion.product.dto.response;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+
+import com.fashion.product.dto.response.ProductResponse.InnerProductResponse;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -18,9 +21,9 @@ import lombok.experimental.FieldDefaults;
 public class ProductSkuResponse {
     UUID id;
     String sku;
-    Double price;
-    Integer tempStock;
-    
+    BigDecimal price;
+    int tempStock;
+    InnerProductResponse product;
     String createdBy;
     Instant createdAt;
     String updatedBy;
@@ -35,7 +38,7 @@ public class ProductSkuResponse {
     public static class InnerProductSkuResponse {
         UUID id;
         String sku;
-        Double price;
+        BigDecimal price;
         int stock;
     }
 }

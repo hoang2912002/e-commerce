@@ -15,8 +15,8 @@ public interface PromotionService {
     PromotionResponse updatePromotion(PromotionRequest promotion);
     PromotionResponse getPromotionById(UUID id);
     PaginationResponse<List<PromotionResponse>> getAllPromotion(SearchRequest request);
-    PromotionResponse getCorrespondingPromotionByProductId(ProductSku productSku);
     void decreaseQuantity(UUID id, Integer quantity);
     void increaseQuantity(UUID id, Integer quantity);
     Promotion lockPromotionById(UUID id);
+    PromotionResponse getInternalCorrespondingPromotionByProductId(UUID productSkuId);
 }

@@ -90,4 +90,13 @@ public class ProductController {
         this.productService.validateInternalProductById(productId,productSkuId);
         return ResponseEntity.noContent().build();
     }
+    
+    @InternalEndpoint
+    @GetMapping("/internal/get-internal-product-by-id")
+    @ApiMessageResponse("product.success.internal.get.single")
+    public ResponseEntity<ProductResponse> getInternalProductById(
+        @RequestParam UUID productId
+    ) {
+        return ResponseEntity.ok(this.productService.getProductById(productId));
+    }
 }

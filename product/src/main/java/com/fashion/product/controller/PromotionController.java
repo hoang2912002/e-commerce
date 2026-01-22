@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.product.common.annotation.ApiMessageResponse;
+import com.fashion.product.common.annotation.InternalEndpoint;
 import com.fashion.product.dto.request.PromotionRequest;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.PaginationResponse;
@@ -71,5 +73,15 @@ public class PromotionController {
         @ModelAttribute SearchRequest request
     ) {
         return ResponseEntity.status(HttpStatus.OK).body(this.promotionService.getAllPromotion(request));
+    }
+
+    //------------------Internal endpoint-----------------------
+    @InternalEndpoint
+    @GetMapping("/internal/get-corresponding-promotion-by-product-id")
+    @ApiMessageResponse("promotion.success.get.single")
+    public ResponseEntity<PromotionResponse> getInternalPromotionByProductId(
+        @RequestParam("productSkuId") UUID productSkuId
+    ) {
+        return ResponseEntity.status(HttpStatus.OK).body(this.promotionService.getInternalCorrespondingPromotionByProductId(productSkuId));
     }
 }

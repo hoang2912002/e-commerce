@@ -1,6 +1,9 @@
 package com.fashion.product.service.impls;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.rmi.ServerException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +44,7 @@ import com.fashion.product.exception.ServiceException;
 import com.fashion.product.mapper.CategoryMapper;
 import com.fashion.product.mapper.ProductMapper;
 import com.fashion.product.mapper.PromotionMapper;
+import com.fashion.product.repository.ProductSkuRepository;
 import com.fashion.product.repository.PromotionProductRepository;
 import com.fashion.product.repository.PromotionRepository;
 import com.fashion.product.service.CategoryService;
@@ -63,6 +67,7 @@ public class PromotionServiceImpl implements PromotionService{
     PromotionProductRepository promotionProductRepository;
     CategoryMapper categoryMapper;
     ProductMapper productMapper;
+    ProductSkuRepository productSkuRepository;
 
     @Override
     @Transactional(rollbackFor = ServiceException.class)
@@ -132,6 +137,7 @@ public class PromotionServiceImpl implements PromotionService{
     }
 
     @Override
+    @Transactional(readOnly = true)
     public PaginationResponse<List<PromotionResponse>> getAllPromotion(SearchRequest request) {
         try {
             SearchOption searchOption = request.getSearchOption();
@@ -165,9 +171,44 @@ public class PromotionServiceImpl implements PromotionService{
     }
 
     @Override
-    public PromotionResponse getCorrespondingPromotionByProductId(ProductSku productSku) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getCorrespondingPromotionByProductId'");
+    @Transactional(readOnly = true)
+    public PromotionResponse getInternalCorrespondingPromotionByProductId(UUID productSkuId) {
+        try {
+            ProductSku productSku = this.productSkuRepository.findById(productSkuId).orElseThrow(
+                () -> new ServiceException(
+                    EnumError.PRODUCT_PRODUCT_SKU_ERR_NOT_FOUND_ID,
+                    "product.sku.not.found.id",
+                    Map.of("productSkuId", productSkuId)
+                )
+            );
+            BigDecimal productPrice = productSku.getPrice();
+            List<Promotion> promotions = this.promotionProductRepository
+                .findAllByProductId(productSku.getProduct().getId())
+                .stream()
+                .map(PromotionProduct::getPromotion)
+                .filter(Objects::nonNull)
+                .filter(p -> !p.getEndDate().isBefore(LocalDate.now()))  // còn hiệu lực
+                .distinct()
+                .toList();
+            
+            PromotionResponse best = null;
+            BigDecimal maxDiscount = BigDecimal.ZERO;
+
+            for (Promotion p : promotions) {
+                BigDecimal discount = calculateDiscountValue(p, productPrice);
+                if (discount.compareTo(maxDiscount) > 0) {
+                    maxDiscount = discount;
+                    best = promotionMapper.toDto(p);
+                    best.setDiscountFinal(maxDiscount);
+                }
+            }
+            return best;
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [getInternalCorrespondingPromotionByProductId] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        } 
     }
 
     @Override
@@ -291,5 +332,46 @@ public class PromotionServiceImpl implements PromotionService{
             log.error("PRODUCT-SERVICE: [checkPromotionExistByCode] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
+    }
+
+    private BigDecimal calculateDiscountValue(Promotion p, BigDecimal productPrice) {
+        BigDecimal discount = BigDecimal.ZERO;
+
+        if (p == null || productPrice == null) {
+            return BigDecimal.ZERO;
+        }
+
+        // ========== CASE 1: GIẢM THEO % (Option = 0) ==========
+        if (Integer.valueOf(0).equals(p.getOptionPromotion())) {
+            if (p.getDiscountPercent() != null) {
+                discount = productPrice.multiply(BigDecimal.valueOf(p.getDiscountPercent()))
+                        .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP); // Làm tròn số tiền (thường là 0 số thập phân với VNĐ)
+            }
+        } 
+        // ========== CASE 2: GIẢM THEO SỐ TIỀN CỐ ĐỊNH ==========
+        else {
+            if (p.getMinDiscountAmount() != null) {
+                discount = p.getMinDiscountAmount();
+            }
+        }
+
+        // ========== ÁP DỤNG MIN/MAX CHO CẢ HAI TRƯỜNG HỢP ==========
+        // 1. Kiểm tra Min Discount (Giảm giá tối thiểu)
+        if (p.getMinDiscountAmount() != null) {
+            discount = discount.max(p.getMinDiscountAmount());
+        }
+
+        // 2. Kiểm tra Max Discount (Giảm giá tối đa - Cap)
+        if (p.getMaxDiscountAmount() != null) {
+            discount = discount.min(p.getMaxDiscountAmount());
+        }
+
+        // ========== LOGIC AN TOÀN GIÁ (CRITICAL) ==========
+        // Không cho giảm > giá sản phẩm 
+        if (discount.compareTo(productPrice) > 0) {
+            discount = productPrice;
+        }
+
+        return discount;
     }
 }

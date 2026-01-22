@@ -10,8 +10,6 @@ import com.fashion.product.entity.OptionValue;
 public interface OptionValueService {
     public OptionValueResponse createOptionValue(OptionValue optionValue);
     public OptionValueResponse updateOptionValue(OptionValue optionValue);
-    public List<OptionValue> getRawListOptionValueBySlug(List<String> slugs);
-    public List<OptionValue> getRawListOptionValueById(List<Long> id);
     public OptionValueResponse getOptionValueById(Long id);
     public PaginationResponse<List<OptionValueResponse>> getAllOptionValue(SearchRequest request);
 }

@@ -1,5 +1,6 @@
 package com.fashion.product.dto.response;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -26,9 +27,9 @@ public class PromotionResponse {
     String code;
     String name;
     String description;
-    Double discountPercent;
-    Double minDiscountAmount;
-    Double maxDiscountAmount;
+    BigDecimal discountPercent;
+    BigDecimal minDiscountAmount;
+    BigDecimal maxDiscountAmount;
     Integer quantity;
     PromotionEnum discountType;
     LocalDate startDate;
@@ -41,7 +42,7 @@ public class PromotionResponse {
     Instant updatedAt;
     Boolean activated;
 
-    Double discountFinal; // giá giảm cuối cùng (giá sản phẩm - (discountPercent | minDiscountAmount))
+    BigDecimal discountFinal; // giá giảm cuối cùng (giá sản phẩm - (discountPercent | minDiscountAmount))
 
     List<InnerProductResponse> products;
     List<InnerCategoryResponse> categories;
@@ -54,9 +55,9 @@ public class PromotionResponse {
         UUID id;
         String code;
         String name;
-        Double discountPercent;
-        Double minDiscountAmount;
-        Double maxDiscountAmount;
+        BigDecimal discountPercent;
+        BigDecimal minDiscountAmount;
+        BigDecimal maxDiscountAmount;
         Integer quantity;
         PromotionEnum discountType;
     }

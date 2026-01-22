@@ -16,6 +16,5 @@ public interface ShopManagementService {
     ShopManagementResponse getShopManagementById(UUID id);
     PaginationResponse<List<ShopManagementResponse>> getAllShopManagement(SearchRequest request);
     void deleteShopManagementById(UUID id);
-    ShopManagement findRawShopManagementById(UUID id);
     Map<String, Object[]> detectChangedFields(ShopManagement oldData, ShopManagement newData);
 }

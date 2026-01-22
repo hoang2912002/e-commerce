@@ -108,35 +108,12 @@ public class OptionValueServiceImpl implements OptionValueService{
 
     @Override
     @Transactional(readOnly = true)
-    public List<OptionValue> getRawListOptionValueBySlug(List<String> slugs){
-        try {
-            return this.optionValueRepository.findAllBySlugIn(slugs);
-        } catch (Exception e) {
-            log.error("PRODUCT-SERVICE: [getRawListOptionValueBySlug] Error: {}", e.getMessage(), e);
-            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
-        }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<OptionValue> getRawListOptionValueById(List<Long> id){
-        try {
-            return this.optionValueRepository.findAllByIdIn(id);
-            
-        } catch (Exception e) {
-            log.error("PRODUCT-SERVICE: [getRawListOptionValueById] Error: {}", e.getMessage(), e);
-            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
-        }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
     public OptionValueResponse getOptionValueById(Long id){
         try {
             OptionValue optionValue = getRawOptionValueById(id);
             return optionValueMapper.toDto(optionValue);
         } catch (Exception e) {
-            log.error("PRODUCT-SERVICE: [getRawListOptionValueById] Error: {}", e.getMessage(), e);
+            log.error("PRODUCT-SERVICE: [getOptionValueById] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
