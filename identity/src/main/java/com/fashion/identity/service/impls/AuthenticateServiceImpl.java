@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -23,6 +24,8 @@ import com.fashion.identity.dto.response.LoginResponse;
 import com.fashion.identity.dto.response.LoginResponse.LoginResponseUserData;
 import com.fashion.identity.dto.response.LoginResponse.UserInsideToken;
 import com.fashion.identity.dto.response.kafka.UserRegisterEvent;
+import com.fashion.identity.dto.response.kafka.UserRegisterEvent.InternalUserRegistedEvent;
+import com.fashion.identity.dto.response.kafka.UserVerifyCodeEvent.InternalUserCreatedEvent;
 import com.fashion.identity.dto.response.VerifyEmailResponse;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.exception.ServiceException;
@@ -49,6 +52,7 @@ public class AuthenticateServiceImpl implements AuthenticateService{
     final UserRepository userRepository;
     final RoleMapper roleMapper;
     final IdentityServiceProducer identityServiceProducer;
+    final ApplicationEventPublisher applicationEventPublisher;
 
     @Value("${jwt.access-token-in-seconds}")
     Long accessTokenExpiration;
@@ -124,14 +128,21 @@ public class AuthenticateServiceImpl implements AuthenticateService{
             this.userRepository.saveAndFlush(user);
 
             // Send mail register successful
-            this.identityServiceProducer.produceUserVerifyEventSuccess(
-                UserRegisterEvent.builder()
+            UserRegisterEvent eventPayload = UserRegisterEvent.builder()
                 .id(user.getId())
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .verificationAt(FormatTime.StringDateLocalDateTime(LocalDateTime.now()))
-                .build()
-            );
+                .build();
+            applicationEventPublisher.publishEvent(new InternalUserRegistedEvent(this, eventPayload));
+            // this.identityServiceProducer.produceUserVerifyEventSuccess(
+            //     UserRegisterEvent.builder()
+            //     .id(user.getId())
+            //     .email(user.getEmail())
+            //     .fullName(user.getFullName())
+            //     .verificationAt(FormatTime.StringDateLocalDateTime(LocalDateTime.now()))
+            //     .build()
+            // );
 
             LoginResponse loginResponse = LoginResponse.builder()
                 .accessToken(accessToken)

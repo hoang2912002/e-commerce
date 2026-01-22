@@ -10,6 +10,7 @@ import java.util.Random;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -33,6 +34,7 @@ import com.fashion.identity.dto.response.PaginationResponse;
 import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.dto.response.AddressResponse.InnerAddressResponse;
 import com.fashion.identity.dto.response.kafka.UserVerifyCodeEvent;
+import com.fashion.identity.dto.response.kafka.UserVerifyCodeEvent.InternalUserCreatedEvent;
 import com.fashion.identity.entity.Address;
 import com.fashion.identity.entity.Role;
 import com.fashion.identity.entity.User;
@@ -60,6 +62,7 @@ public class UserServiceImpl implements UserService{
     final AddressService addressService;
     final RoleRepository roleRepository;
     final IdentityServiceProducer identityProducer;
+    final ApplicationEventPublisher applicationEventPublisher;
 
     @Value("${role.slug.admin}")
     String roleAdmin;
@@ -188,15 +191,23 @@ public class UserServiceImpl implements UserService{
                 .build();
             final User savedUser = this.userRepository.save(userForCreate);
             if(savedUser.getId() instanceof UUID && Objects.nonNull(savedUser)){
-                identityProducer.produceUserEventSuccess(
-                    UserVerifyCodeEvent.builder()
+                UserVerifyCodeEvent eventPayload = UserVerifyCodeEvent.builder()
                     .id(savedUser.getId())
                     .fullName(savedUser.getFullName())
                     .email(savedUser.getEmail())
                     .verifyCode(savedUser.getVerificationCode())
                     .verificationExpiration(FormatTime.StringDateLocalDateTime(savedUser.getVerificationExpiration()))
-                    .build()
-                );
+                    .build();
+                applicationEventPublisher.publishEvent(new InternalUserCreatedEvent(this, eventPayload));
+                // identityProducer.produceUserEventSuccess(
+                //     UserVerifyCodeEvent.builder()
+                //     .id(savedUser.getId())
+                //     .fullName(savedUser.getFullName())
+                //     .email(savedUser.getEmail())
+                //     .verifyCode(savedUser.getVerificationCode())
+                //     .verificationExpiration(FormatTime.StringDateLocalDateTime(savedUser.getVerificationExpiration()))
+                //     .build()
+                // );
             }
             // Save address
             final List<InnerAddressResponse> addressServices = this.addressService.handleAddressesForUser(
