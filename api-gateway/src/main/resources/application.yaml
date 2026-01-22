@@ -7,6 +7,8 @@ service:
     url: http://localhost:8080
   product:
     url: http://localhost:8081
+  order:
+    url: http://localhost:8082
   inventory:
     url: http://localhost:8083
   notification:
@@ -57,6 +59,13 @@ spring:
             uri: ${service.inventory.url}
             predicates:
             - Path=${app.api-prefix}/inventory/**
+            filters:
+              - StripPrefix=2
+          # Order service
+          - id: order-service
+            uri: ${service.order.url}
+            predicates:
+            - Path=${app.api-prefix}/order/**
             filters:
               - StripPrefix=2
 jwt:
