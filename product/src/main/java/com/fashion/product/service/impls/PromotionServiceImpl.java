@@ -34,6 +34,7 @@ import com.fashion.product.dto.response.OptionValueResponse;
 import com.fashion.product.dto.response.ProductResponse.InnerProductResponse;
 import com.fashion.product.dto.response.PaginationResponse;
 import com.fashion.product.dto.response.PromotionResponse;
+import com.fashion.product.dto.response.PromotionResponse.InnerPromotionResponse;
 import com.fashion.product.entity.Category;
 import com.fashion.product.entity.OptionValue;
 import com.fashion.product.entity.Product;
@@ -44,6 +45,7 @@ import com.fashion.product.exception.ServiceException;
 import com.fashion.product.mapper.CategoryMapper;
 import com.fashion.product.mapper.ProductMapper;
 import com.fashion.product.mapper.PromotionMapper;
+import com.fashion.product.repository.ProductRepository;
 import com.fashion.product.repository.ProductSkuRepository;
 import com.fashion.product.repository.PromotionProductRepository;
 import com.fashion.product.repository.PromotionRepository;
@@ -63,7 +65,7 @@ public class PromotionServiceImpl implements PromotionService{
     PromotionRepository promotionRepository;
     PromotionMapper promotionMapper;
     CategoryService categoryService;
-    ProductService productService;
+    ProductRepository productRepository;
     PromotionProductRepository promotionProductRepository;
     CategoryMapper categoryMapper;
     ProductMapper productMapper;
@@ -172,15 +174,8 @@ public class PromotionServiceImpl implements PromotionService{
 
     @Override
     @Transactional(readOnly = true)
-    public PromotionResponse getInternalCorrespondingPromotionByProductId(UUID productSkuId) {
+    public InnerPromotionResponse getInternalCorrespondingPromotionByProductId(ProductSku productSku) {
         try {
-            ProductSku productSku = this.productSkuRepository.findById(productSkuId).orElseThrow(
-                () -> new ServiceException(
-                    EnumError.PRODUCT_PRODUCT_SKU_ERR_NOT_FOUND_ID,
-                    "product.sku.not.found.id",
-                    Map.of("productSkuId", productSkuId)
-                )
-            );
             BigDecimal productPrice = productSku.getPrice();
             List<Promotion> promotions = this.promotionProductRepository
                 .findAllByProductId(productSku.getProduct().getId())
@@ -191,14 +186,14 @@ public class PromotionServiceImpl implements PromotionService{
                 .distinct()
                 .toList();
             
-            PromotionResponse best = null;
+            InnerPromotionResponse best = null;
             BigDecimal maxDiscount = BigDecimal.ZERO;
 
             for (Promotion p : promotions) {
                 BigDecimal discount = calculateDiscountValue(p, productPrice);
                 if (discount.compareTo(maxDiscount) > 0) {
                     maxDiscount = discount;
-                    best = promotionMapper.toDto(p);
+                    best = promotionMapper.toInnerEntity(p);
                     best.setDiscountFinal(maxDiscount);
                 }
             }
@@ -264,7 +259,7 @@ public class PromotionServiceImpl implements PromotionService{
                     ).collect(Collectors.toList());
             } else if (productRequests != null) {
                 List<UUID> productIds = productRequests.stream().map(InnerProductRequest::getId).distinct().toList();
-                List<Product> products = this.productService.findListProductById(productIds);
+                List<Product> products = this.productRepository.findAllByIdIn(productIds);
                 
                 newItems = products.stream()
                     .map(p -> PromotionProduct.builder()
@@ -342,7 +337,7 @@ public class PromotionServiceImpl implements PromotionService{
         }
 
         // ========== CASE 1: GIẢM THEO % (Option = 0) ==========
-        if (Integer.valueOf(0).equals(p.getOptionPromotion())) {
+        if (p.getOptionPromotion() == 0) {
             if (p.getDiscountPercent() != null) {
                 discount = productPrice.multiply(BigDecimal.valueOf(p.getDiscountPercent()))
                         .divide(BigDecimal.valueOf(100), 0, RoundingMode.HALF_UP); // Làm tròn số tiền (thường là 0 số thập phân với VNĐ)

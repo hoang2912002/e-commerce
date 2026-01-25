@@ -47,7 +47,7 @@ public enum EnumError {
     PRODUCT_PRODUCT_ERR_NOT_FOUND_SHOP_MANAGEMENT("PRODUCT-PRODUCT-NOT-FOUND-SHOP-MANAGEMENT","The user managing this shop management has no product",HttpStatus.CONFLICT),
     PRODUCT_PRODUCT_DATA_EXISTED_APPROVAL_PENDING_ADJUSTMENT("PRODUCT-PRODUCT-DTE-APPROVAL-PENDING-ADJUSTMENT-CANNOT-UPDATE","Product already exists with the adjustment pending/approval history.",HttpStatus.CONFLICT),
 
-    //----------------Product-------------------
+    //----------------Product sku-------------------
     PRODUCT_PRODUCT_SKU_ERR_NOT_FOUND_ID("PRODUCT-PRODUCT-SKU-ERR-NOT-FOUND-ID","Not found product sku with id:",HttpStatus.BAD_REQUEST),
 
     //----------------ShopManagement-------------------

@@ -8,6 +8,7 @@ import com.fashion.product.dto.response.CategoryResponse.InnerCategoryResponse;
 import com.fashion.product.dto.response.OptionResponse.InnerOptionResponse;
 import com.fashion.product.dto.response.OptionValueResponse.InnerOptionValueResponse;
 import com.fashion.product.dto.response.ProductSkuResponse.InnerProductSkuResponse;
+import com.fashion.product.dto.response.PromotionResponse.InnerPromotionResponse;
 import com.fashion.product.dto.response.ShopManagementResponse.InnerShopManagementResponse;
 
 import lombok.AccessLevel;

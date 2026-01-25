@@ -23,6 +23,7 @@ import com.fashion.product.common.util.PageableUtils;
 import com.fashion.product.common.util.SlugUtil;
 import com.fashion.product.common.util.SpecificationUtils;
 import com.fashion.product.dto.request.ProductRequest;
+import com.fashion.product.dto.request.ProductRequest.InnerInternalProductRequest;
 import com.fashion.product.dto.request.VariantRequest.InnerVariantRequest;
 import com.fashion.product.dto.request.search.SearchModel;
 import com.fashion.product.dto.request.search.SearchOption;
@@ -30,6 +31,9 @@ import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.OptionValueResponse;
 import com.fashion.product.dto.response.PaginationResponse;
 import com.fashion.product.dto.response.ProductResponse;
+import com.fashion.product.dto.response.ProductSkuResponse;
+import com.fashion.product.dto.response.PromotionResponse;
+import com.fashion.product.dto.response.PromotionResponse.InnerPromotionResponse;
 import com.fashion.product.dto.response.ProductSkuResponse.InnerProductSkuResponse;
 import com.fashion.product.entity.Category;
 import com.fashion.product.entity.OptionValue;
@@ -39,6 +43,7 @@ import com.fashion.product.entity.ShopManagement;
 import com.fashion.product.entity.Variant;
 import com.fashion.product.exception.ServiceException;
 import com.fashion.product.mapper.ProductMapper;
+import com.fashion.product.mapper.ProductSkuMapper;
 import com.fashion.product.repository.CategoryRepository;
 import com.fashion.product.repository.OptionValueRepository;
 import com.fashion.product.repository.ProductRepository;
@@ -49,6 +54,7 @@ import com.fashion.product.service.ApprovalHistoryService;
 import com.fashion.product.service.CategoryService;
 import com.fashion.product.service.ProductService;
 import com.fashion.product.service.ProductSkuService;
+import com.fashion.product.service.PromotionService;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -69,7 +75,8 @@ public class ProductServiceImpl implements ProductService{
     ProductSkuService productSkuService;
     OptionValueRepository optionValueRepository;
     ApprovalHistoryService approvalHistoryService;
-
+    PromotionService promotionService;
+    ProductSkuMapper productSkuMapper;
     @Override
     @Transactional(rollbackFor = ServiceException.class)
     public ProductResponse createProduct(ProductRequest request) {
@@ -186,6 +193,61 @@ public class ProductServiceImpl implements ProductService{
             throw e;
         } catch (Exception e) {
             log.error("PRODUCT-SERVICE: [validateInternalProductById] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductResponse> getInternalProductByIdAndCheckApproval(InnerInternalProductRequest request) {
+        try {
+            List<UUID> productSkuIdList = request.getProductSkuIdList();
+            List<UUID> productIdList = request.getProductIdList();
+            List<Product> products = this.productRepository.findAllByIdIn(productIdList);
+            if(products.isEmpty()){
+                throw new ServiceException(EnumError.PRODUCT_PRODUCT_ERR_NOT_FOUND_ID, "product.not.found.id.in");
+            }
+            
+            // Check approval product
+            this.approvalHistoryService.checkApprovalHistoryForUpSertOrder(products);
+
+            // Check product sku
+            List<ProductSku> targetSkus = products.stream()
+                .flatMap(p -> p.getProductSkus().stream())
+                .filter(sku -> productSkuIdList.contains(sku.getId()))
+                .toList();
+
+            if (targetSkus.size() != productSkuIdList.size()) {
+                throw new ServiceException(EnumError.PRODUCT_PRODUCT_SKU_ERR_NOT_FOUND_ID, "product.sku.not.found.id.in");
+            }
+
+            // Grouping SKU following Product
+            Map<UUID, List<ProductSku>> skuGroupedByProduct = targetSkus.stream()
+                .collect(Collectors.groupingBy(sku -> sku.getProduct().getId()));
+
+            // Get corresponding Promotion base on original product price
+            return skuGroupedByProduct.entrySet().stream().map(entry -> {
+                List<ProductSku> skus = entry.getValue();
+                Product product = skus.get(0).getProduct();
+                ProductResponse productRes = productMapper.toDto(product);
+
+                List<InnerProductSkuResponse> skuResponses = skus.stream().map(sku -> {
+                    InnerProductSkuResponse skuDto = productSkuMapper.toInnerEntity(sku);
+                    
+                    InnerPromotionResponse promotion = this.promotionService.getInternalCorrespondingPromotionByProductId(sku);
+                    skuDto.setPromotion(promotion);
+                    
+                    return skuDto;
+                }).toList();
+                productRes.setProductSkus(skuResponses); 
+                
+                return productRes;
+            }).toList();
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [getInternalProductByIdAndCheckApproval] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }

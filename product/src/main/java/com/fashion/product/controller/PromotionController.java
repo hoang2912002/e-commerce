@@ -82,6 +82,7 @@ public class PromotionController {
     public ResponseEntity<PromotionResponse> getInternalPromotionByProductId(
         @RequestParam("productSkuId") UUID productSkuId
     ) {
-        return ResponseEntity.status(HttpStatus.OK).body(this.promotionService.getInternalCorrespondingPromotionByProductId(productSkuId));
+        // this.promotionService.getInternalCorrespondingPromotionByProductId(productSkuId)
+        return ResponseEntity.status(HttpStatus.OK).body(null);
     }
 }

@@ -59,4 +59,15 @@ public class ProductRequest {
     public static class InnerProductRequest {
         UUID id;
     }
+
+    @NoArgsConstructor
+    @Data
+    @AllArgsConstructor
+    @Builder
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class InnerInternalProductRequest {
+        List<UUID> productIdList;
+        List<UUID> productSkuIdList;
+        
+    }
 }

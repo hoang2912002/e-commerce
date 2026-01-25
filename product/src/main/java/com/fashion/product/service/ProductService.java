@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fashion.product.dto.request.ProductRequest;
+import com.fashion.product.dto.request.ProductRequest.InnerInternalProductRequest;
 import com.fashion.product.dto.request.VariantRequest.InnerVariantRequest;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.PaginationResponse;
@@ -17,4 +18,5 @@ public interface ProductService {
     ProductResponse getProductById(UUID id);
     List<Product> findListProductById(List<UUID> ids);
     void validateInternalProductById(UUID id, UUID skuId);
+    List<ProductResponse> getInternalProductByIdAndCheckApproval(InnerInternalProductRequest request);
 }

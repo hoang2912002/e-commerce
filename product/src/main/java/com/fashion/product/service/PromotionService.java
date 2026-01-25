@@ -7,6 +7,7 @@ import com.fashion.product.dto.request.PromotionRequest;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.PaginationResponse;
 import com.fashion.product.dto.response.PromotionResponse;
+import com.fashion.product.dto.response.PromotionResponse.InnerPromotionResponse;
 import com.fashion.product.entity.ProductSku;
 import com.fashion.product.entity.Promotion;
 
@@ -18,5 +19,5 @@ public interface PromotionService {
     void decreaseQuantity(UUID id, Integer quantity);
     void increaseQuantity(UUID id, Integer quantity);
     Promotion lockPromotionById(UUID id);
-    PromotionResponse getInternalCorrespondingPromotionByProductId(UUID productSkuId);
+    InnerPromotionResponse getInternalCorrespondingPromotionByProductId(ProductSku productSku);
 }

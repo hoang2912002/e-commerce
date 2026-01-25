@@ -60,5 +60,9 @@ public class PromotionResponse {
         BigDecimal maxDiscountAmount;
         Integer quantity;
         PromotionEnum discountType;
+        LocalDate startDate;
+        LocalDate endDate;
+        byte optionPromotion;
+        BigDecimal discountFinal;
     }
 }

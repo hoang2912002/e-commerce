@@ -80,7 +80,7 @@ public enum ApprovalMasterEnum {
         }
     }
 
-    //Check approval product for create/update inventory
+    //Check approval product for create/update inventory and order
     public void validateAbilityUpsertInventory(ApprovalErrorProvider errorProvider, Map<String, Object> params){
         boolean isValid = switch (this) {
             case PENDING, NEEDS_ADJUSTMENT, FINISHED_ADJUSTMENT, REJECTED, ADJUSTMENT -> false;

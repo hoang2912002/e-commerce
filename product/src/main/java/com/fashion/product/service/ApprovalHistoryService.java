@@ -21,6 +21,6 @@ public interface ApprovalHistoryService {
         String entityType
     );
     boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval);
-    boolean checkApprovalHistoryForUpSertOrder(Product product);
+    void checkApprovalHistoryForUpSertOrder(List<Product> products);
     void validateInternalApprovalHistoryByRequestId(UUID requestId);
 }

@@ -50,6 +50,7 @@ import com.fashion.product.security.SecurityUtils;
 import com.fashion.product.service.ApprovalHistoryService;
 import com.fashion.product.service.ProductSkuService;
 import com.fashion.product.service.provider.ApprovalHistoryInventoryErrorProvider;
+import com.fashion.product.service.provider.ApprovalHistoryOrderErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistoryProductErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistorySmErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistoryUpSertErrorProvider;
@@ -75,6 +76,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     ApprovalHistoryProductErrorProvider historyProductErrorProvider;
     ApprovalHistorySmErrorProvider historyShopManagementErrorProvider;
     ApprovalHistoryInventoryErrorProvider historyInventoryErrorProvider;
+    ApprovalHistoryOrderErrorProvider approvalHistoryOrderErrorProvider;
 
     public final static String ENTITY_TYPE_PRODUCT = "PRODUCT";
     public final static String ENTITY_TYPE_INVENTORY = "INVENTORY";
@@ -269,9 +271,35 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     }
 
     @Override
-    public boolean checkApprovalHistoryForUpSertOrder(Product product) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'checkApprovalHistoryForUpSertOrder'");
+    @Transactional(readOnly = true)
+    public void checkApprovalHistoryForUpSertOrder(List<Product> products) {
+        try {
+            List<ApprovalMaster> masters = 
+                this.approvalMasterRepository.findAllByEntityType(ENTITY_TYPE_PRODUCT);
+            if (!masters.isEmpty()) {
+                List<UUID> keys = masters.stream()
+                    .map(ApprovalMaster::getId)
+                    .toList();
+                for (Product p : products) {
+                    Map<String, Object> paramError = Map.of("productId", p.getId());
+                    ApprovalHistory histories = this.approvalHistoryRepository
+                        .findFirstByRequestIdAndApprovalMasterIdInOrderByApprovedAtDesc(p.getId(), keys).orElseThrow(
+                            () -> new ServiceException(
+                                EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_LAST_PRODUCT,
+                                "approval.history.not.found.requestId", 
+                                paramError
+                            )
+                        );
+                    ApprovalMasterEnum lastStatus = histories.getApprovalMaster().getStatus();
+                    lastStatus.validateAbilityUpsertInventory(approvalHistoryOrderErrorProvider,Map.of("productId", paramError));
+                }
+            }
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [checkApprovalHistoryForUpSertOrder] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override

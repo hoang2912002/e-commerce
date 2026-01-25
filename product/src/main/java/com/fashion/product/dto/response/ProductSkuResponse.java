@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.fashion.product.dto.response.ProductResponse.InnerProductResponse;
+import com.fashion.product.dto.response.PromotionResponse.InnerPromotionResponse;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -39,6 +40,7 @@ public class ProductSkuResponse {
         UUID id;
         String sku;
         BigDecimal price;
-        int stock;
+        int tempStock;
+        InnerPromotionResponse promotion;
     }
 }

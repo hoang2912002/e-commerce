@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fashion.product.common.annotation.ApiMessageResponse;
 import com.fashion.product.common.annotation.InternalEndpoint;
 import com.fashion.product.dto.request.ProductRequest;
+import com.fashion.product.dto.request.ProductRequest.InnerInternalProductRequest;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.PaginationResponse;
 import com.fashion.product.dto.response.ProductResponse;
@@ -98,5 +99,14 @@ public class ProductController {
         @RequestParam UUID productId
     ) {
         return ResponseEntity.ok(this.productService.getProductById(productId));
+    }
+
+    @InternalEndpoint
+    @PostMapping("/internal/get-internal-product-and-product-sku-and-check-approval-by-id")
+    @ApiMessageResponse("product.success.internal.get.single")
+    public ResponseEntity<List<ProductResponse>> getInternalProductAndProductSkuById(
+        @RequestBody InnerInternalProductRequest request
+    ) {
+        return ResponseEntity.ok(this.productService.getInternalProductByIdAndCheckApproval(request));
     }
 }
