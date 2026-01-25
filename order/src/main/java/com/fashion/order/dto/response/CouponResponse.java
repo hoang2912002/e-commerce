@@ -1,13 +1,14 @@
-package com.fashion.order.dto.response.internal;
+package com.fashion.order.dto.response;
 
+import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
-import com.fashion.order.dto.response.internal.ProductSkuResponse.InnerProductSkuResponse;
-import com.fashion.order.dto.response.internal.PromotionResponse.InnerPromotionResponse;
-import com.fashion.order.dto.response.internal.ShopManagementResponse.InnerShopManagementResponse;
+import com.fashion.order.common.enums.CouponEnum;
 
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,30 +21,32 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProductResponse {
+public class CouponResponse {
     UUID id;
     String name;
-    String price;
-    String thumbnail;
-    Integer quantity;
-    
-    String description;
+    String code;
+    @Enumerated(EnumType.STRING)
+    CouponEnum type;
+    Integer stock;
+    LocalDateTime startDate;
+    LocalDateTime endDate;
+    BigDecimal couponAmount;
     String createdBy;
     Instant createdAt;
     String updatedBy;
     Instant updatedAt;
     Boolean activated;
-
-    InnerShopManagementResponse shopManagement;
-    List<InnerProductSkuResponse> productSkus;
+    Long version;
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class InnerProductResponse {
+    public static class InnerCouponResponse {
         UUID id;
         String name;
+        String code;
+        BigDecimal couponAmount;
     }
 }

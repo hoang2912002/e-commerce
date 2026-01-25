@@ -9,7 +9,7 @@ import com.fashion.order.exception.ServiceException;
 public class ConvertUuidUtil {
     public static UUID toUuid(Object id) {
         if (id == null) {
-            throw new ServiceException(EnumError.INVENTORY_INVALID_FORMAT_UUID, "server.id.must.not.be.null");
+            throw new ServiceException(EnumError.ORDER_INVALID_FORMAT_UUID, "server.id.must.not.be.null");
         }
 
         // Nếu bản thân nó đã là UUID rồi thì trả về luôn (tránh parse thừa)
@@ -22,7 +22,7 @@ public class ConvertUuidUtil {
             return UUID.fromString(id.toString());
         } catch (IllegalArgumentException e) {
             throw new ServiceException(
-                EnumError.INVENTORY_INVALID_FORMAT_UUID, 
+                EnumError.ORDER_INVALID_FORMAT_UUID, 
                 "server.id.must.not.be.null", 
                 Map.of("id", id.toString())
             );
