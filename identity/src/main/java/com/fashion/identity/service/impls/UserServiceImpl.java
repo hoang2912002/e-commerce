@@ -296,7 +296,7 @@ public class UserServiceImpl implements UserService{
                 this.addressService.handleAddressesForUser(
                     updateUser, user.getAddresses(),
                     addr -> new AddressResponse.InnerAddressResponse(
-                        addr.getId(), addr.getAddress(), addr.getProvince(), addr.getDistrict(), addr.getWard()
+                        addr.getId(), addr.getAddress(), addr.getProvince(), addr.getDistrict(), addr.getWard(), false
                     )
                 );
 

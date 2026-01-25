@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.identity.common.annotation.ApiMessageResponse;
+import com.fashion.identity.common.annotation.InternalEndpoint;
 import com.fashion.identity.dto.request.UserRequest;
 import com.fashion.identity.dto.request.search.user.UserSearchRequest;
 import com.fashion.identity.dto.response.PaginationResponse;
@@ -86,6 +87,7 @@ public class UserController {
     }
 
     //Internal endpoint
+    @InternalEndpoint
     @GetMapping("/internal/validate-internal-user-role-by-id")
     @ApiMessageResponse("user.success.get.single")
     public ResponseEntity<Void> validateInternalUserById(
@@ -94,5 +96,14 @@ public class UserController {
     ) {
         this.userService.validateInternalUserById(id,isCheckRole);
         return ResponseEntity.noContent().build();
+    }
+    
+    @InternalEndpoint
+    @GetMapping("/internal/get-internal-user-by-id")
+    @ApiMessageResponse("user.success.get.single")
+    public ResponseEntity<UserResponse> getInternalUserById(
+        @RequestParam UUID id
+    ) {
+        return ResponseEntity.ok(this.userService.getUserById(id));
     }
 }

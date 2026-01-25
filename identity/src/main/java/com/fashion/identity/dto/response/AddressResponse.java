@@ -44,5 +44,6 @@ public class AddressResponse {
         String district;
         String province;
         String ward;
+        Boolean currentUserAddress;
     }
 }

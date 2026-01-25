@@ -14,9 +14,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.identity.common.annotation.ApiMessageResponse;
+import com.fashion.identity.common.annotation.InternalEndpoint;
 import com.fashion.identity.dto.request.AddressRequest;
 import com.fashion.identity.dto.request.UserRequest;
 import com.fashion.identity.dto.request.search.user.UserSearchRequest;
@@ -78,5 +80,15 @@ public class AddressController {
         @PathVariable("id") UUID id
     ){
         this.addressService.deleteAddressById(id);
+    }
+
+    //Internal Endpoint
+    @InternalEndpoint
+    @GetMapping("/internal/get-internal-address-by-id")
+    @ApiMessageResponse("user.success.get.single")
+    public ResponseEntity<AddressResponse> getInternalAddressById(
+        @RequestParam UUID id
+    ) {
+        return ResponseEntity.ok(this.addressService.getAddressById(id));
     }
 }
