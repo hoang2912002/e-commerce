@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.UUID;
 
 import com.fashion.inventory.dto.request.WareHouseRequest.InnerWareHouseRequest;
+import com.fashion.inventory.dto.request.internal.ProductRequest.InnerProductRequest;
+import com.fashion.inventory.dto.request.internal.ProductSkuRequest.InnerProductSkuRequest;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -73,6 +75,7 @@ public class InventoryRequest {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class ReturnAvailableQuantity {
         UUID productId;
         UUID productSkuId;
@@ -80,5 +83,17 @@ public class InventoryRequest {
         Integer circulationCount;
         // sl giữa mới > sl giữ cũ
         boolean isNegative;
+    }
+
+    @NoArgsConstructor
+    @Data
+    @AllArgsConstructor
+    @Builder
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class InnerOrderDetail_FromOrderRequest {
+        Long id;
+        Integer quantity;
+        InnerProductRequest product;
+        InnerProductSkuRequest productSku;
     }
 }

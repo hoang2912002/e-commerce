@@ -1,5 +1,6 @@
 package com.fashion.inventory.service;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import org.springframework.core.annotation.MergedAnnotations.Search;
 
 import com.fashion.inventory.dto.request.InventoryRequest;
 import com.fashion.inventory.dto.request.InventoryRequest.BaseInventoryRequest;
+import com.fashion.inventory.dto.request.InventoryRequest.InnerOrderDetail_FromOrderRequest;
 import com.fashion.inventory.dto.request.search.SearchRequest;
 import com.fashion.inventory.dto.response.InventoryResponse;
 import com.fashion.inventory.dto.response.PaginationResponse;
@@ -37,4 +39,5 @@ public interface InventoryService {
         Integer quantity,
         boolean decreaseQuantityAvailable // TRUE: trừ số lượng khả dụng, cộng số lượng giữ. FALSE: hồi số lượng khả dụng, trừ số lượng giữ
     );
+    void checkInternalQuantityAvailableForOrder(Collection<InnerOrderDetail_FromOrderRequest> inventory);
 }

@@ -1,5 +1,6 @@
 package com.fashion.inventory.controller;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.fashion.inventory.common.annotation.ApiMessageResponse;
 import com.fashion.inventory.common.annotation.InternalEndpoint;
 import com.fashion.inventory.dto.request.InventoryRequest;
+import com.fashion.inventory.dto.request.InventoryRequest.InnerOrderDetail_FromOrderRequest;
 import com.fashion.inventory.dto.request.search.SearchRequest;
 import com.fashion.inventory.dto.response.InventoryResponse;
 import com.fashion.inventory.dto.response.PaginationResponse;
@@ -84,5 +86,15 @@ public class InventoryController {
         @PathVariable("id") Long id
     ) {
         return ResponseEntity.status(HttpStatus.OK).body(null);
+    }
+    
+    @InternalEndpoint
+    @PostMapping("/internal/validate-internal-inventory-and-check-quantity-available")
+    @ApiMessageResponse("inventory.success.internal.get.single")
+    public ResponseEntity<Void> checkInternalQuantityAvailableForOrder(
+        @RequestBody Collection<InnerOrderDetail_FromOrderRequest> inventory
+    ) {
+        this.inventoryService.checkInternalQuantityAvailableForOrder(inventory);
+        return ResponseEntity.noContent().build();
     }
 }

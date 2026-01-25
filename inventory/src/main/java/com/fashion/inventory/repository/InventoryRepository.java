@@ -2,8 +2,10 @@ package com.fashion.inventory.repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -39,4 +41,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID>, Jpa
         @QueryHint(name = "javax.persistence.lock.timeout", value = "0") // 0 = fail immediately
     })
     List<Inventory> lockInventoryBySkuId(@Param("skuIds") List<UUID> skuIds);
+
+    @EntityGraph(attributePaths = "wareHouse")
+    List<Inventory> findAllByProductSkuIdIn(Set<UUID> productSkuId);
 }

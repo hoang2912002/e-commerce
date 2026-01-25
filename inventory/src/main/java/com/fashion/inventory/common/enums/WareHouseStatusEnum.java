@@ -44,4 +44,20 @@ public enum WareHouseStatusEnum {
             );
         }
     }
+
+    // Check warehouse must be ACTIVE for CREATE/UPDATE Order
+    public void validateOrderAbility(WareHouseErrorProvider errorProvider, Map<String, Object> params){
+        boolean isValid = switch (this) {
+            case ACTIVE -> true;
+            case PENDING, INACTIVE, CLOSED -> false;
+        };
+
+        if (!isValid) {
+            throw new ServiceException(
+                errorProvider.getError(this),
+                errorProvider.getMessageCode(this),
+                params
+            );
+        }
+    }
 }
