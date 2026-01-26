@@ -6,6 +6,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,6 +17,8 @@ import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.antlr.v4.runtime.atn.SemanticContext.OR;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,10 +38,17 @@ import com.fashion.order.dto.request.search.SearchRequest;
 import com.fashion.order.dto.response.OrderResponse;
 import com.fashion.order.dto.response.PaginationResponse;
 import com.fashion.order.dto.response.internal.AddressResponse;
+import com.fashion.order.dto.response.internal.PaymentResponse;
 import com.fashion.order.dto.response.internal.ProductResponse;
+import com.fashion.order.dto.response.internal.ProductSkuResponse;
+import com.fashion.order.dto.response.internal.ShippingResponse;
 import com.fashion.order.dto.response.internal.ProductSkuResponse.InnerProductSkuResponse;
+import com.fashion.order.dto.response.kafka.OrderCreatedEvent;
+import com.fashion.order.dto.response.kafka.OrderCreatedEvent.InternalOrderCreatedEvent;
 import com.fashion.order.dto.response.internal.UserResponse;
 import com.fashion.order.dto.response.internal.AddressResponse.InnerAddressResponse;
+import com.fashion.order.dto.response.internal.InventoryResponse.ReturnAvailableQuantity;
+import com.fashion.order.dto.response.internal.ProductResponse.InnerProductResponse;
 import com.fashion.order.entity.Coupon;
 import com.fashion.order.entity.Order;
 import com.fashion.order.entity.OrderDetail;
@@ -68,6 +78,7 @@ public class OrderServiceImpl implements OrderService{
     InventoryClient inventoryClient;
     CouponService couponService;
     OrderUpdateStatusErrorProvider orderUpdateStatusErrorProvider;
+    ApplicationEventPublisher applicationEventPublisher;
 
     public static final Set<String> IMPORTANT_FIELDS_STATUS_CONFIRMED = Set.of(
         "receiverAddress",
@@ -85,14 +96,17 @@ public class OrderServiceImpl implements OrderService{
         "receiverProvince",
         "receiverDistrict",
         "receiverWard",
-        "paymentMethod",
         "receiverName",
         "receiverEmail",
         "receiverPhone",
+        "paymentMethod",
         "totalItem",
         "totalPrice",
         "discountPrice",
-        "finalPrice"
+        "finalPrice",
+        "shippingFee",
+        "userId",
+        "addressId"
     );
 
     public static final Set<String> NOT_ALLOWED_FIELDS_STATUS_CONFIRMED = Set.of(
@@ -121,10 +135,11 @@ public class OrderServiceImpl implements OrderService{
         "activated"
     );
     private static final Set<String> IGNORE_FIELDS_STATUS_PENDING = Set.of(
+        "id",
         "paymentStatus",
         "shippingStatus",
         "status",
-        "shippingFee",
+        // "shippingFee",
         "shippingId",
         "paymentId",
         "note",
@@ -132,11 +147,11 @@ public class OrderServiceImpl implements OrderService{
         "coupon",
         "code",
         "activated",
-        "version",
-        "totalItem",
-        "totalPrice",
-        "discountPrice",
-        "finalPrice"
+        "version"
+        // "totalItem",
+        // "totalPrice",
+        // "discountPrice",
+        // "finalPrice"
     );
 
     public static final Set<String> NOT_ALLOWED_FIELDS_STATUS_PENDING = Set.of(
@@ -149,6 +164,13 @@ public class OrderServiceImpl implements OrderService{
         log.info("ORDER-SERVICE: [createOrder] start create order ....");
         try {
             Order order = this.orderMapper.toValidated(request);
+            // Initialize kafka data
+            OrderCreatedEvent kafkaEventData = OrderCreatedEvent.builder()
+                .inventories(new HashSet<>())
+                .payment(new PaymentResponse())
+                .promotions(new HashMap<>())
+                .shipping(new ShippingResponse())
+                .build();
             Map<UUID, InnerOrderDetail_FromOrderRequest> odRequest = request.getOrderDetails().stream()
                 .map(o -> {
                     if (o.getId() == null) {
@@ -225,6 +247,18 @@ public class OrderServiceImpl implements OrderService{
                             .order(order)
                             .build()
                     );
+                    if (pSku.getPromotion() != null) {
+                        // ~quantity + 1 concurrency -quantity 
+                        kafkaEventData.getPromotions().merge(pSku.getId(), ~quantity + 1, Integer::sum);
+                    }
+                    kafkaEventData.getInventories().add(
+                        ReturnAvailableQuantity.builder()
+                        .productId(product.getId())
+                        .productSkuId(pSku.getId())
+                        .circulationCount(quantity)
+                        .isNegative(true) // true -> Decrease inventory quantity available (Negative) and opposite
+                        .build()
+                    );
 
                     // Summary total item/price for Order
                     totalItemPrice_Order = totalItemPrice_Order.add(originalPricePerUnit.multiply(qty));
@@ -267,7 +301,16 @@ public class OrderServiceImpl implements OrderService{
             // DECREASE COUPON
             this.couponService.decreaseStock(coupon.getId());
 
-            // KAFKA SEND EVENT DECREASE: INVENTORY, PROMOTION. AND CREATE PAYMENT TRANSACTION, SHIPPING.
+            kafkaEventData.setPayment(
+                PaymentResponse.builder()
+                .status(order.getPaymentStatus())
+                .amount(order.getFinalPrice())
+                .paymentMethod(order.getPaymentMethod())
+                .orderId(order.getId())
+                .build()
+            );
+            // KAFKA SEND EVENT DECREASE: INVENTORY, PROMOTION. AND CREATE PAYMENT TRANSACTION.
+            applicationEventPublisher.publishEvent(new InternalOrderCreatedEvent(this, kafkaEventData));
             return this.orderMapper.toDto(this.orderRepository.save(order));
         } catch (ServiceException e) {
             throw e;
@@ -306,12 +349,17 @@ public class OrderServiceImpl implements OrderService{
             saveOrder.setReceiverName(userResponse.getFullName());
             saveOrder.setReceiverPhone(userResponse.getPhoneNumber());
             order.getStatus().validateUpdateOrder(orderUpdateStatusErrorProvider);
+            OrderCreatedEvent eventData = null;
             if(order.getStatus().equals(OrderEnum.PENDING)){
-                this.updateOrderStatusPending(order, saveOrder, odRequest);
+                eventData = this.updateOrderStatusPending(order, saveOrder, odRequest);
             } else if (order.getStatus().equals(OrderEnum.CONFIRMED)) {
                 // this.updateOrderStatusConfirmed(order, saveOrder, odRequest);
             }
-            return null;
+            if(eventData != null){
+                // Send kafka event
+                applicationEventPublisher.publishEvent(new InternalOrderCreatedEvent(this, eventData));
+            }
+            return this.orderMapper.toDto(this.orderRepository.save(order));
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -351,7 +399,7 @@ public class OrderServiceImpl implements OrderService{
                 String prefix = "HD" + LocalDate.now().getYear(); 
                 String randomPart = UUID.randomUUID().toString().substring(0, 6).toUpperCase(); 
                 String orderCode = prefix + "-" + randomPart;
-                Order order = this.orderRepository.findByCode(orderCode).orElseGet(null);
+                Order order = this.orderRepository.findByCode(orderCode).orElseGet(() -> null);
                 if (order == null) {
                     return orderCode;
                 }
@@ -389,7 +437,7 @@ public class OrderServiceImpl implements OrderService{
     }
     
 
-    private OrderResponse updateOrderStatusPending(Order orderDB, Order orderReq, List<InnerOrderDetail_FromOrderRequest> odRequest){
+    private OrderCreatedEvent updateOrderStatusPending(Order orderDB, Order orderReq, List<InnerOrderDetail_FromOrderRequest> odRequest){
         try {
             Map<String, Object[]> changedFields = detectChangedFields(orderDB, orderReq, IGNORE_FIELDS_STATUS_PENDING);
             Coupon couponCurrentUp = this.couponService.validateCouponOrder(orderReq.getCoupon().getId());
@@ -421,6 +469,14 @@ public class OrderServiceImpl implements OrderService{
                 .collect(Collectors.toMap(OrderDetail::getProductSkuId, Function.identity(), (a,b) -> a));
 
             List<OrderDetail> updatedOrderDetails = new ArrayList<>();
+
+            // Initialize kafka data
+            OrderCreatedEvent kafkaEventData = OrderCreatedEvent.builder()
+                .inventories(new HashSet<>())
+                .payment(new PaymentResponse())
+                .promotions(new HashMap<>())
+                .shipping(new ShippingResponse())
+                .build();
             BigDecimal totalItemPrice_Order = BigDecimal.ZERO; // Tổng giá gốc (priceOriginal * quantity)
             BigDecimal totalDiscountByPromotion = BigDecimal.ZERO; // Tổng giảm giá từ Promotion (discountFinal * quantity)
             BigDecimal couponAmount = BigDecimal.ZERO;
@@ -428,12 +484,234 @@ public class OrderServiceImpl implements OrderService{
             Integer totalItem_Order = 0;
             BigDecimal finalPrice = orderDB.getFinalPrice();
 
-            Map<Long, Integer> promotionUsageChangeMap = new HashMap<>();
+            Map<UUID, ReturnAvailableQuantity> inventoryUsageChangeMap = new HashMap<>();
             
-            List<Long> detailsToDelete = new ArrayList<>();
+            Set<Long> detailsToDelete = new HashSet();
             Map<UUID, OrderDetail> finalDetailsMap = new HashMap<>(oldDetailsMap);
-            
-            return null;
+
+            Map<UUID, InnerOrderDetail_FromOrderRequest> newDetailsMap = odRequest.stream()
+                .collect(Collectors.toMap(o -> o.getProductSku().getId(), Function.identity(), (a,b) -> a));
+
+            for (InnerOrderDetail_FromOrderRequest each : odRequest) {
+                OrderDetail oldDetail = oldDetailsMap.get(each.getProductSku().getId());
+                boolean keepNew = true; 
+
+                if (oldDetail != null) {
+                    boolean isUnchanged = oldDetail.getQuantity() == each.getQuantity();
+                    if (isUnchanged) {
+                        keepNew = false;
+                    } else {
+                        keepNew = true;
+                    }
+                }
+                if (keepNew) {
+                    OrderDetail newDetailEntity = OrderDetail.builder()
+                        .productId(each.getProduct().getId())
+                        .productSkuId(each.getProductSku().getId())
+                        .quantity(each.getQuantity())
+                        .order(orderDB)
+                        .build();
+                    if (oldDetail != null) {
+                        newDetailEntity.setId(oldDetail.getId()); 
+                    }
+                    finalDetailsMap.put(
+                        each.getProductSku().getId(), 
+                        newDetailEntity
+                    );
+                }
+            }
+
+            for (Map.Entry<UUID, OrderDetail> oldEntry : oldDetailsMap.entrySet()) {
+                if (!newDetailsMap.containsKey(oldEntry.getKey())) {
+                    OrderDetail odValueFromDB = oldEntry.getValue();
+
+                    // Kiểm tra order detail cần xóa
+                    if(finalDetailsMap.containsKey(odValueFromDB.getProductSkuId())){ 
+                        finalDetailsMap.remove(odValueFromDB.getProductSkuId()); 
+                    }
+                    detailsToDelete.add(odValueFromDB.getId());
+
+                    inventoryUsageChangeMap.put(odValueFromDB.getProductSkuId(), 
+                        ReturnAvailableQuantity.builder()
+                        .productId(odValueFromDB.getProductId())
+                        .productSkuId(odValueFromDB.getProductSkuId())
+                        .circulationCount(odValueFromDB.getQuantity())
+                        .isNegative(false) // diff < 0 (old < new) -> Decrease stock (Negative)
+                        .build()
+                    );
+
+                    kafkaEventData.getPromotions().merge(
+                        odValueFromDB.getProductSkuId(), 
+                        odValueFromDB.getQuantity(), 
+                        Integer::sum
+                    );
+                }
+            }
+
+            if(finalDetailsMap.size() > 0){
+                InnerInternalProductRequest productRequest = InnerInternalProductRequest.builder()
+                    .productIdList(finalDetailsMap.values().stream().map(OrderDetail::getProductId).distinct().toList())
+                    .productSkuIdList(finalDetailsMap.values().stream().map(OrderDetail::getProductSkuId).distinct().toList())
+                    .build();
+                
+                CompletableFuture<List<ProductResponse>> productFuture = (productRequest != null)
+                    ? AsyncUtils.fetchAsync(() -> this.productClient.getInternalProductAndProductSkuById(productRequest))
+                    : CompletableFuture.completedFuture(null);
+                
+                CompletableFuture<Void> inventoryFuture = (!odRequest.isEmpty()) 
+                    ? AsyncUtils.fetchAsync(() -> this.inventoryClient.checkQuantityAvailableInventoryByProductSkuId(odRequest))
+                    : CompletableFuture.completedFuture(null);
+
+                try {
+                    CompletableFuture.allOf(productFuture, inventoryFuture).join();
+                } catch (CompletionException e) {
+                    if (e.getCause() instanceof ServiceException serviceException) {
+                        throw serviceException;
+                    }
+                    throw e;
+                }    
+                Map<UUID, ProductResponse> productResponse = productFuture.join().stream().collect(Collectors.toMap(ProductResponse::getId, Function.identity(), (a,b) -> b));
+
+                for (OrderDetail orderD : finalDetailsMap.values()) {
+                    OrderDetail orderDetailDB = oldDetailsMap.getOrDefault(orderD.getProductSkuId(), null);
+                    OrderDetail entityToSave;
+
+                    // Condition update / create / skip
+                    int oldQuantity = (orderDetailDB != null) ? orderDetailDB.getQuantity() : 0;
+                    int newQuantity = orderD.getQuantity();
+                    int diff = oldQuantity - newQuantity;
+
+                    boolean isQuantityChanged = diff != 0;
+                    boolean isNewEntity = orderD.getId() == null; // Create position
+
+                    ProductResponse product = productResponse.get(orderD.getProductId());
+                    InnerProductSkuResponse productSkuResponse = product.getProductSkus().stream().filter(p -> p.getId().equals(orderD.getProductSkuId())).findFirst().orElseGet(null);
+
+                    // ADD PROMOTION DATA TO KAFKA. Promotion has been decreased after resolving negative quantity and opposite.
+                    if(isQuantityChanged){
+                        kafkaEventData.getPromotions().merge(
+                            orderD.getProductSkuId(), 
+                            diff, 
+                            Integer::sum
+                        );
+                    }
+
+                    // Tính toán số lượng sản phẩm của đơn thay đổi
+                    if (isNewEntity) {
+                        // TRƯỜNG HỢP A: THÊM MỚI HOÀN TOÀN (chưa có ID, diff = 0 - newQuantity)
+                        inventoryUsageChangeMap.put(orderD.getProductSkuId(), 
+                            ReturnAvailableQuantity.builder()
+                            .productId(orderD.getProductId())
+                            .productSkuId(productSkuResponse.getId())
+                            .circulationCount(newQuantity)
+                            .isNegative(true) // Auto decrease inventory quantity available
+                            .build()
+                        );
+                    } else if (isQuantityChanged) {
+                        // TRƯỜNG HỢP B: SỬA ĐỔI SỐ LƯỢNG (Có ID và diff != 0)
+                        inventoryUsageChangeMap.put(orderD.getProductSkuId(), 
+                            ReturnAvailableQuantity.builder()
+                            .productId(orderD.getProductId())
+                            .productSkuId(productSkuResponse.getId())
+                            .circulationCount(Math.abs(diff))
+                            .isNegative(diff < 0) // diff < 0 (old < new) -> Decrease inventory quantity available (Negative) and opposite
+                            .build()
+                        );
+                    }
+
+                    // TÍNH TOÁN CHO CHI TIẾT ĐƠN HÀNG (OrderDetail)
+                    if (orderD.getQuantity() == null || orderD.getQuantity() <= 0) continue;
+                    BigDecimal qty = BigDecimal.valueOf(orderD.getQuantity());
+
+                    BigDecimal originalPricePerUnit = productSkuResponse.getPrice();
+                    BigDecimal discountPerUnit = productSkuResponse.getPromotion() != null ? productSkuResponse.getPromotion().getDiscountFinal() : BigDecimal.ZERO;
+                    BigDecimal finalPricePerUnit = originalPricePerUnit.subtract(discountPerUnit);
+
+                    BigDecimal totalPrice_Detail = calculateTotalPrice(originalPricePerUnit,discountPerUnit,qty);
+
+                    if (orderDetailDB != null) {
+                        // TRƯỜNG HỢP CẬP NHẬT: Dùng chính thằng DB để Hibernate không báo lỗi detached
+                        entityToSave = orderDetailDB;
+                    } else {
+                        // TRƯỜNG HỢP THÊM MỚI: Dùng thằng orderD (thằng này ID đang null nên persist thoải mái)
+                        entityToSave = orderD;
+                    }
+
+                    entityToSave.setActivated(true);
+                    entityToSave.setPromotionDiscount(discountPerUnit);
+                    entityToSave.setPriceOriginal(originalPricePerUnit);
+                    entityToSave.setPrice(finalPricePerUnit);
+                    entityToSave.setQuantity(orderD.getQuantity()); // Giữ nguyên
+                    entityToSave.setTotalPrice(totalPrice_Detail);
+                    entityToSave.setProductId(product.getId());
+                    entityToSave.setProductSkuId(productSkuResponse.getId());
+                    entityToSave.setOrder(orderDB);
+
+                    updatedOrderDetails.add(entityToSave);
+
+                    totalItemPrice_Order = totalItemPrice_Order.add(originalPricePerUnit.multiply(qty));
+                    totalDiscountByPromotion = totalDiscountByPromotion.add(discountPerUnit.multiply(qty));
+                    totalItem_Order += orderD.getQuantity();
+                }
+            }
+            if (orderDB.getOrderDetails() == null) {
+                orderDB.setOrderDetails(new ArrayList<>());
+            }
+            // Clear all relationship Order detail from Order to prevent Hibernate referenced exception
+            orderDB.getOrderDetails().clear();
+            orderDB.getOrderDetails().addAll(updatedOrderDetails);
+            orderDB.setCoupon(couponCurrentUp);
+
+            if(couponCurrentUp != null){
+                couponAmount = 
+                    couponCurrentUp.getType().equals(CouponEnum.PERCENT) ? 
+                    totalItemPrice_Order.multiply(couponCurrentUp.getCouponAmount()).divide(BigDecimal.valueOf(100),0, RoundingMode.HALF_UP) : 
+                    couponCurrentUp.getCouponAmount();
+                
+            }
+            totalDiscount = totalDiscountByPromotion.add(couponAmount);
+
+            orderReq.setTotalPrice(totalItemPrice_Order);
+            orderReq.setDiscountPrice(totalDiscount);
+            orderReq.setTotalItem(totalItem_Order);
+
+            // ADD INVENTORY DATA TO KAFKA
+            kafkaEventData.setInventories(inventoryUsageChangeMap.values());
+
+            // Calculate shipping free
+            if(isShippingInfoChanged){
+                // ADD SHIPPING DATA TO KAFKA
+                kafkaEventData.setShipping(
+                    ShippingResponse.builder()
+                    .status(orderDB.getShippingStatus())
+                    .orderId(orderDB.getId())
+                    .id(orderDB.getShippingId())
+                    .build()
+                );
+                orderReq.setShippingFee(BigDecimal.ZERO);
+                finalPrice = totalItemPrice_Order.subtract(totalDiscount);
+            } else {
+                BigDecimal oldShippingFee = orderDB.getShippingFee() != null ? orderDB.getShippingFee() : BigDecimal.ZERO;
+                finalPrice = totalItemPrice_Order.subtract(totalDiscount.add(oldShippingFee));
+            }
+            orderReq.setFinalPrice(finalPrice);
+
+            // Áp dụng các thay đổi địa chỉ phép vào oldData
+            this.applyAllowedChanges(orderDB, orderReq, changedFields, IMPORTANT_FIELDS_STATUS_PENDING);
+
+
+            if (changedFields.containsKey("paymentMethod")) {
+                kafkaEventData.setPayment(
+                    PaymentResponse.builder()
+                    .id(orderDB.getPaymentId())
+                    .status(orderDB.getPaymentStatus())
+                    .amount(orderDB.getFinalPrice())
+                    .paymentMethod(orderReq.getPaymentMethod())
+                    .orderId(orderDB.getId())
+                    .build()
+                );
+            }
+            return kafkaEventData;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {

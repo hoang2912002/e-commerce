@@ -9,16 +9,19 @@ import java.util.UUID;
 import com.fashion.order.common.enums.PromotionEnum;
 import com.fashion.order.dto.response.internal.ProductResponse.InnerProductResponse;
 
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.experimental.FieldDefaults;
 
 public class PromotionResponse {
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class InnerPromotionResponse {
         UUID id;
         String code;

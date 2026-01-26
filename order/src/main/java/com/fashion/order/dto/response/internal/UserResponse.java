@@ -31,10 +31,10 @@ public class UserResponse {
     String phoneNumber;
     String userName;
     String avatar;
-    boolean emailVerified;
+    Boolean emailVerified;
     String verificationCode;
     LocalDateTime verificationExpiration; 
-    boolean activated;
+    Boolean activated;
     String createdBy;
     Instant createdAt;
     String updatedBy;

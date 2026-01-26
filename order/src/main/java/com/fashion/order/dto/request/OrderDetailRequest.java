@@ -58,7 +58,7 @@ public class OrderDetailRequest {
     @FieldDefaults(level = AccessLevel.PRIVATE)
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class InnerOrderDetail_FromOrderRequest {
-        @NotNull(groups = OrderRequest.Update.class, message = "order.detail.id.notNull")
+        // @NotNull(groups = OrderRequest.Update.class, message = "order.detail.id.notNull")
         @Builder.Default
         Long id = 0L;
         @NotNull(groups = {OrderRequest.Update.class, OrderRequest.Update.class}, message = "order.orderDetail.quantity.notNull")
