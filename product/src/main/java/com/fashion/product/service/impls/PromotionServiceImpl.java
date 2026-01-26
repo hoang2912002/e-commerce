@@ -5,11 +5,13 @@ import java.math.RoundingMode;
 import java.rmi.ServerException;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
@@ -207,21 +209,47 @@ public class PromotionServiceImpl implements PromotionService{
     }
 
     @Override
-    public void decreaseQuantity(UUID id, Integer quantity) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'decreaseQuantity'");
-    }
-
-    @Override
-    public void increaseQuantity(UUID id, Integer quantity) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'increaseQuantity'");
-    }
-
-    @Override
     @Transactional(rollbackFor = ServerException.class)
     public Promotion lockPromotionById(UUID id){
         return this.promotionRepository.lockPromotionById(id);
+    }
+
+    
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public void spinningQuantity(Map<UUID, Integer> productSkus) {
+        try {
+            Map<UUID, ProductSku> skus = this.productSkuRepository.findAllByIdIn(productSkus.keySet()).stream().collect(Collectors.toMap(ProductSku::getId, Function.identity()));
+            for (Map.Entry<UUID, Integer> pSku : productSkus.entrySet()) {
+                ProductSku productSku = skus.getOrDefault(pSku.getKey(), null);
+                if(productSku != null){
+                    InnerPromotionResponse promotion = this.getInternalCorrespondingPromotionByProductId(productSku);
+                    int updatedRows;
+                    if(pSku.getValue() > 0){
+                        updatedRows = this.promotionRepository.increaseQuantityAtomic(
+                            promotion.getId(),
+                            Math.abs(pSku.getValue())
+                        );
+                    } else {
+                        updatedRows = this.promotionRepository.decreaseQuantityAtomic(
+                            promotion.getId(),
+                            Math.abs(pSku.getValue())
+                        );
+                    }
+                    if (updatedRows == 0) {
+                        throw new ServiceException(
+                            EnumError.PRODUCT_PROMOTION_INVALID_QUANTITY, 
+                            "promotion.quantity.stock.error.for.atomic.update"
+                        );
+                    }  
+                }
+            }
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [spinningQuantity] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        } 
     }
     
     private PromotionResponse upSertPromotion(

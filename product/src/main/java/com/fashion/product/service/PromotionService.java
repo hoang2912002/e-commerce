@@ -1,6 +1,7 @@
 package com.fashion.product.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import com.fashion.product.dto.request.PromotionRequest;
@@ -16,8 +17,7 @@ public interface PromotionService {
     PromotionResponse updatePromotion(PromotionRequest promotion);
     PromotionResponse getPromotionById(UUID id);
     PaginationResponse<List<PromotionResponse>> getAllPromotion(SearchRequest request);
-    void decreaseQuantity(UUID id, Integer quantity);
-    void increaseQuantity(UUID id, Integer quantity);
+    void spinningQuantity(Map<UUID, Integer> promotions);
     Promotion lockPromotionById(UUID id);
     InnerPromotionResponse getInternalCorrespondingPromotionByProductId(ProductSku productSku);
 }

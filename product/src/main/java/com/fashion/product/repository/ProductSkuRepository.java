@@ -1,6 +1,7 @@
 package com.fashion.product.repository;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -17,6 +18,7 @@ import jakarta.persistence.QueryHint;
 
 public interface ProductSkuRepository extends JpaRepository<ProductSku, UUID>, JpaSpecificationExecutor<ProductSku>{
     List<ProductSku> findAllByProductId(UUID productId);
+    List<ProductSku> findAllByIdIn(Set<UUID> ids);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM ProductSku s WHERE s.product.id = :productId")

@@ -6,6 +6,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
@@ -33,4 +34,26 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID>, Jpa
         @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
     })
     Promotion lockPromotionById(@Param("id") UUID id);
+
+
+    @Modifying
+    @Query(value = "UPDATE promotions " +
+        "SET quantity = quantity - :quantity " +
+        "WHERE id = :id " +
+        "AND quantity >= :quantity", 
+    nativeQuery = true)
+    int decreaseQuantityAtomic(
+        @Param("id") UUID id,
+        @Param("quantity") Integer quantity
+    );
+    
+    @Modifying
+    @Query(value = "UPDATE promotions " +
+        "SET quantity = quantity + :quantity " +
+        "WHERE id = :id ", 
+    nativeQuery = true)
+    int increaseQuantityAtomic(
+        @Param("id") UUID id,
+        @Param("quantity") Integer quantity
+    );
 }

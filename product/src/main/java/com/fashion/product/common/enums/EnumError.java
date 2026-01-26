@@ -34,7 +34,7 @@ public enum EnumError {
     //----------------Promotion-------------------
     PRODUCT_PROMOTION_DATA_EXISTED_CODE("PRODUCT-PROMOTION-DATA-EXISTED-CODE","Promotion already exists with the given Code:",HttpStatus.CONFLICT),
     PRODUCT_PROMOTION_ERR_NOT_FOUND_ID("PRODUCT-PROMOTION-NOT-FOUND-ID","Not found promotion with id:",HttpStatus.BAD_REQUEST),
-    
+    PRODUCT_PROMOTION_INVALID_QUANTITY("PRODUCT-PROMOTION-INVALID-QUANTITY","Failed to update promotion quantity immediately after Create/Update Order successful", HttpStatus.BAD_REQUEST),
     //----------------Product-------------------
     PRODUCT_PRODUCT_DATA_EXISTED_NAME("PRODUCT-PRODUCT-DATA-EXISTED-NAME","Product already exists with the given Name:",HttpStatus.CONFLICT),
     PRODUCT_PRODUCT_ERR_NOT_FOUND_ID("PRODUCT-PRODUCT-NOT-FOUND-ID","Not found product with id:",HttpStatus.BAD_REQUEST),
