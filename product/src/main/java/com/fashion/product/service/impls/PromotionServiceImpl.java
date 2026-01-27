@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.product.common.enums.EnumError;
 import com.fashion.product.common.enums.PromotionEnum;
+import com.fashion.product.common.util.ConvertUuidUtil;
 import com.fashion.product.common.util.PageableUtils;
 import com.fashion.product.common.util.SpecificationUtils;
 import com.fashion.product.dto.request.PromotionRequest;
@@ -217,8 +219,12 @@ public class PromotionServiceImpl implements PromotionService{
     
     @Override
     @Transactional(rollbackFor = ServiceException.class)
-    public void spinningQuantity(Map<UUID, Integer> productSkus) {
+    public void spinningQuantity(Map<UUID, Integer> productSkus, UUID eventId) {
         try {
+            if (this.promotionRepository.existsByEventId(eventId)) {
+                log.warn("PRODUCT-SERVICE: Event {} already processed. Skipping.", eventId);
+                return; 
+            }
             Map<UUID, ProductSku> skus = this.productSkuRepository.findAllByIdIn(productSkus.keySet()).stream().collect(Collectors.toMap(ProductSku::getId, Function.identity()));
             for (Map.Entry<UUID, Integer> pSku : productSkus.entrySet()) {
                 ProductSku productSku = skus.getOrDefault(pSku.getKey(), null);
@@ -228,12 +234,14 @@ public class PromotionServiceImpl implements PromotionService{
                     if(pSku.getValue() > 0){
                         updatedRows = this.promotionRepository.increaseQuantityAtomic(
                             promotion.getId(),
-                            Math.abs(pSku.getValue())
+                            Math.abs(pSku.getValue()),
+                            eventId
                         );
                     } else {
                         updatedRows = this.promotionRepository.decreaseQuantityAtomic(
                             promotion.getId(),
-                            Math.abs(pSku.getValue())
+                            Math.abs(pSku.getValue()),
+                            eventId
                         );
                     }
                     if (updatedRows == 0) {
@@ -268,6 +276,9 @@ public class PromotionServiceImpl implements PromotionService{
             promotion.setDiscountPercent(isAmountType ? null : promotionRequest.getDiscountPercent());
             promotion.setMinDiscountAmount(isAmountType ? promotionRequest.getMinDiscountAmount() : null);
             promotion.setMaxDiscountAmount(isAmountType ? promotionRequest.getMaxDiscountAmount() : null);
+            if(promotion.getEventId() == null){
+                promotion.setEventId(UUID.randomUUID());
+            }
 
             List<PromotionProduct> newItems = new ArrayList<>();
             
@@ -308,7 +319,7 @@ public class PromotionServiceImpl implements PromotionService{
                 promotion.getPromotionProducts().addAll(newItems);
             }
 
-            Promotion savedPromotion = this.promotionRepository.saveAndFlush(promotion);
+            Promotion savedPromotion = this.promotionRepository.save(promotion);
             return buildPromotionResponse(savedPromotion);
 
         } catch (ServiceException e) {

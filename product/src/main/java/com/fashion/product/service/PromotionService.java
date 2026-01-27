@@ -17,7 +17,7 @@ public interface PromotionService {
     PromotionResponse updatePromotion(PromotionRequest promotion);
     PromotionResponse getPromotionById(UUID id);
     PaginationResponse<List<PromotionResponse>> getAllPromotion(SearchRequest request);
-    void spinningQuantity(Map<UUID, Integer> promotions);
+    void spinningQuantity(Map<UUID, Integer> promotions, UUID eventId);
     Promotion lockPromotionById(UUID id);
     InnerPromotionResponse getInternalCorrespondingPromotionByProductId(ProductSku productSku);
 }

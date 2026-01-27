@@ -25,7 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class OrderServiceConsumer {
     PromotionService promotionService;
-    @KafkaListener(topics = "${spring.kafka.topic.order.order-created-success}", groupId = "${spring.kafka.group.order}", containerFactory = "kafkaListenerContainerFactory")
+    @KafkaListener(topics = "${spring.kafka.topic.order.order-created-success}", groupId = "${spring.kafka.group.product}", containerFactory = "kafkaListenerContainerFactory")
     public void onMessageHandlerOrderUpSertSuccess(@Payload String message){
         try {
             log.info("[onMessageHandlerOrderUpSertSuccess] Start consuming message ...");
@@ -42,7 +42,7 @@ public class OrderServiceConsumer {
             OrderCreatedEvent orderData = event.getPayload();
 
             if(orderData.getPromotions().values().size() > 0){
-                this.promotionService.spinningQuantity(orderData.getPromotions());
+                this.promotionService.spinningQuantity(orderData.getPromotions(), metadata.getEventId());
             } else {
                 log.info("PRODUCT-SERVICE: [onMessageHandlerOrderUpSertSuccess] Not found promotion data received message from kafka with sender ORDER-SERVICE: {}", metadata.getSource());
             }

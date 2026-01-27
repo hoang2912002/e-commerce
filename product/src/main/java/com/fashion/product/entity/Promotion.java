@@ -86,6 +86,9 @@ public class Promotion extends AbstractAuditingEntity<UUID>{
     @Column(name = "option_promotion")
     byte optionPromotion;
 
+    @Column(name = "event_id", nullable = false) // Check Idempotency
+    UUID eventId;
+
     @OneToMany(mappedBy = "promotion", fetch = FetchType.LAZY,cascade = CascadeType.ALL,orphanRemoval = true)
     List<PromotionProduct> promotionProducts = new ArrayList<>();
 }

@@ -38,22 +38,28 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID>, Jpa
 
     @Modifying
     @Query(value = "UPDATE promotions " +
-        "SET quantity = quantity - :quantity " +
+        "SET quantity = quantity - :quantity, " +
+        "event_id = :eventId " +
         "WHERE id = :id " +
         "AND quantity >= :quantity", 
     nativeQuery = true)
     int decreaseQuantityAtomic(
         @Param("id") UUID id,
-        @Param("quantity") Integer quantity
+        @Param("quantity") Integer quantity,
+        @Param("eventId") UUID eventId
     );
     
     @Modifying
     @Query(value = "UPDATE promotions " +
-        "SET quantity = quantity + :quantity " +
+        "SET quantity = quantity + :quantity, " +
+        "event_id = :eventId " +
         "WHERE id = :id ", 
     nativeQuery = true)
     int increaseQuantityAtomic(
         @Param("id") UUID id,
-        @Param("quantity") Integer quantity
+        @Param("quantity") Integer quantity,
+        @Param("eventId") UUID eventId
     );
+
+    Boolean existsByEventId(UUID eventId);
 }
