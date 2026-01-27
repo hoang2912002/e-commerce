@@ -11,6 +11,10 @@ service:
     url: http://localhost:8082
   inventory:
     url: http://localhost:8083
+  payment:
+    url: http://localhost:8084
+  shipping:
+    url: http://localhost:8085
   notification:
     url: http://localhost:8086
   resource:
@@ -66,6 +70,20 @@ spring:
             uri: ${service.order.url}
             predicates:
             - Path=${app.api-prefix}/order/**
+            filters:
+              - StripPrefix=2
+          # Payment service
+          - id: payment-service
+            uri: ${service.payment.url}
+            predicates:
+            - Path=${app.api-prefix}/payment/**
+            filters:
+              - StripPrefix=2
+          # Shipping service
+          - id: shipping-service
+            uri: ${service.shipping.url}
+            predicates:
+            - Path=${app.api-prefix}/shipping/**
             filters:
               - StripPrefix=2
 jwt:
