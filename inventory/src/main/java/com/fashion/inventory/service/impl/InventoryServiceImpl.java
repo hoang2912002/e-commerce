@@ -2,9 +2,12 @@ package com.fashion.inventory.service.impl;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -34,6 +37,7 @@ import com.fashion.inventory.common.util.SpecificationUtils;
 import com.fashion.inventory.dto.request.InventoryRequest;
 import com.fashion.inventory.dto.request.InventoryRequest.BaseInventoryRequest;
 import com.fashion.inventory.dto.request.InventoryRequest.InnerOrderDetail_FromOrderRequest;
+import com.fashion.inventory.dto.request.InventoryRequest.ReturnAvailableQuantity;
 import com.fashion.inventory.dto.request.search.SearchModel;
 import com.fashion.inventory.dto.request.search.SearchOption;
 import com.fashion.inventory.dto.request.search.SearchRequest;
@@ -63,6 +67,7 @@ import com.fashion.inventory.security.SecurityUtils;
 import com.fashion.inventory.service.InventoryService;
 import com.fashion.inventory.service.provider.WareHouseUpSertOrderErrorProvider;
 
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.CriteriaBuilder.In;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -80,7 +85,7 @@ public class InventoryServiceImpl implements InventoryService {
     final MessageUtil messageUtil;
     final InventoryTransactionRepository inventoryTransactionRepository;
     final WareHouseUpSertOrderErrorProvider wareHouseUpSertOrderErrorProvider;
-
+    final EntityManager entityManager;
     @Value("${role.admin}")
     String roleAdmin;
     
@@ -367,20 +372,20 @@ public class InventoryServiceImpl implements InventoryService {
                 .collect(Collectors.toMap(
                     i -> i.getProductSku().getId(), 
                     InnerOrderDetail_FromOrderRequest::getQuantity, 
-                    Integer::sum // Gộp quantity nếu cùng 1 SKU xuất hiện nhiều lần
+                    Integer::sum
                 ));
 
             List<Inventory> inventories = this.inventoryRepository.findAllByProductSkuIdIn(mapRequest.keySet());
             
-            // 3. Check xem có SKU nào bị thiếu record trong kho không
+            // Finding SKU not existed in Ware house record
             if (inventories.size() != mapRequest.size()) {
-                // Tìm ra SKU nào bị thiếu để báo lỗi chính xác
+                // Getting exact SKU name which lack in Warehouse to throw error
                 Set<UUID> foundSkuIds = inventories.stream().map(Inventory::getProductSkuId).collect(Collectors.toSet());
                 List<UUID> missingSkuIds = mapRequest.keySet().stream().filter(id -> !foundSkuIds.contains(id)).toList();
                 throw new ServiceException(EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_PRODUCT_SKU_ID, "inventory.not.found.productSkuId" + missingSkuIds);
             }
 
-            // 4. Validate từng kho
+            // 4. Validate
             for (Inventory inventory : inventories) {
                 Integer requestedQty = mapRequest.get(inventory.getProductSkuId());
                 Integer stockAvailable = inventory.getQuantityAvailable();
@@ -415,10 +420,66 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public void changeQuantityUse(UUID productId, UUID productSku, Integer quantity,
-            boolean decreaseQuantityAvailable) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'changeQuantityUse'");
+    @Transactional(rollbackFor = ServiceException.class)
+    public void changeQuantityUse(Collection<ReturnAvailableQuantity> request, UUID eventId) {
+        try {
+            // Prevent Idempotency error from Kafka
+            if (this.inventoryTransactionRepository.existsByEventId(eventId)) {
+                log.warn("INVENTORY-SERVICE: Event {} already processed. Skipping.", eventId);
+                return; 
+            }
+            Set<InventoryTransaction> savedTransactions = new HashSet<>();
+            WareHouse activeWh = this.wareHouseRepository.findFirstByStatusOrderByCreatedAtDesc(WareHouseStatusEnum.ACTIVE);
+            for (ReturnAvailableQuantity item : request) {
+                Inventory currentInventory = (item.isNegative() 
+                ? inventoryRepository.decreaseQuantityAndIncreaseReservedAtomic(item.getProductId(), item.getProductSkuId(), item.getCirculationCount())
+                : inventoryRepository.increaseQuantityAndDecreaseReservedAtomic(item.getProductId(), item.getProductSkuId(), item.getCirculationCount()))
+                .orElseThrow(() -> new ServiceException(
+                    EnumError.INVENTORY_INVENTORY_INVALID_QUANTITY_AVAILABLE, 
+                    "inventory.quantityAvailable.not.enough.for.atomic.update"
+                ));
+                
+                String note = "";
+                Integer afterAvailableQuantity = currentInventory.getQuantityAvailable();
+                Integer beforeAvailableQuantity;
+
+                if (item.isNegative()) {
+                    // Reserved increase (Decrease Available)
+                    beforeAvailableQuantity = afterAvailableQuantity + item.getCirculationCount();
+                    note = String.format("Order products: %s (Reserved +%d, Available -%d)", item.getProductSkuId(), item.getCirculationCount(), item.getCirculationCount());
+                } else {
+                    // Reserved decrease (Increase Available)
+                    beforeAvailableQuantity = afterAvailableQuantity - item.getCirculationCount();
+                    note = String.format("Return order products: %s (Reserved -%d, Available +%d)", item.getProductSkuId(), item.getCirculationCount(), item.getCirculationCount());
+                }
+
+                InventoryTransactionTypeEnum tType = item.isNegative() 
+                ? InventoryTransactionTypeEnum.ORDER_RESERVE 
+                : InventoryTransactionTypeEnum.ORDER_RELEASE;
+
+                savedTransactions.add(InventoryTransaction.builder()
+                    .activated(true)
+                    .note(note)
+                    .referenceId(item.getProductId())
+                    .referenceType(InventoryTransactionReferenceTypeEnum.ORDER)
+                    .type(tType)
+                    .afterQuantity(afterAvailableQuantity) 
+                    .beforeQuantity(beforeAvailableQuantity)
+                    .quantityChange(Math.abs(item.getCirculationCount()))
+                    .productSkuId(item.getProductSkuId())
+                    .eventId(eventId)
+                    .wareHouse(activeWh)
+                    .build()
+                );
+
+            }
+            this.inventoryTransactionRepository.saveAll(savedTransactions);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [changeQuantityUse] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
     
     private InventoryResponse upSertInventory(Inventory inventory, InventoryRequest inventoryRequest){

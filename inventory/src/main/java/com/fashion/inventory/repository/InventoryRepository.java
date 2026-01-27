@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
@@ -44,4 +45,38 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID>, Jpa
 
     @EntityGraph(attributePaths = "wareHouse")
     List<Inventory> findAllByProductSkuIdIn(Set<UUID> productSkuId);
+
+    Optional<Inventory> findByProductIdAndProductSkuId(UUID productId, UUID productSkuId);
+
+
+    // @Modifying only use for command line return back number of row changed(Specially support for INSERT,UPDATE,DELETE)
+    @Query(value = "UPDATE inventories " +
+                "SET quantity_available = quantity_available - :quantity, " +
+                "quantity_reserved = quantity_reserved + :quantity " +
+                "WHERE product_id = :productId " +
+                "AND product_sku_id = :productSkuId " +
+                "AND quantity_available >= :quantity " +
+                "RETURNING *", // Professional way in PostgreSQL, Spring Data JPA though special SELECT query, after that don't need to request hand by hand using EntityManager refresh
+        nativeQuery = true) // <-- PHẢI THÊM nativeQuery = true
+    Optional<Inventory> decreaseQuantityAndIncreaseReservedAtomic(
+        @Param("productId") UUID productId,
+        @Param("productSkuId") UUID productSkuId,
+        @Param("quantity") Integer quantity
+    );
+
+
+    // @Modifying
+    @Query(value = "UPDATE inventories " +
+                "SET quantity_available = quantity_available + :quantity, " +
+                "quantity_reserved = quantity_reserved - :quantity " +
+                "WHERE product_id = :productId " +
+                "AND product_sku_id = :productSkuId " +
+                "AND quantity_reserved >= :quantity " +
+                "RETURNING *",
+        nativeQuery = true) // <-- PHẢI THÊM nativeQuery = true
+    Optional<Inventory> increaseQuantityAndDecreaseReservedAtomic(
+        @Param("productId") UUID productId,
+        @Param("productSkuId") UUID productSkuId,
+        @Param("quantity") Integer quantity
+    );
 }

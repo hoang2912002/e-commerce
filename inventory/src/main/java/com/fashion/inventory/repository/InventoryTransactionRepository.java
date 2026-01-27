@@ -16,4 +16,5 @@ import com.fashion.inventory.entity.InventoryTransaction;
 
 public interface InventoryTransactionRepository extends JpaRepository<InventoryTransaction, Long>, JpaSpecificationExecutor<InventoryTransaction>{
     Boolean existsByEventIdAndReferenceTypeAndReferenceId(UUID eventId, InventoryTransactionReferenceTypeEnum referenceType, UUID referenceId);
+    Boolean existsByEventId(UUID eventId);
 }

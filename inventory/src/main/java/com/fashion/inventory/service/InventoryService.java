@@ -10,9 +10,11 @@ import org.springframework.core.annotation.MergedAnnotations.Search;
 import com.fashion.inventory.dto.request.InventoryRequest;
 import com.fashion.inventory.dto.request.InventoryRequest.BaseInventoryRequest;
 import com.fashion.inventory.dto.request.InventoryRequest.InnerOrderDetail_FromOrderRequest;
+import com.fashion.inventory.dto.request.InventoryRequest.ReturnAvailableQuantity;
 import com.fashion.inventory.dto.request.search.SearchRequest;
 import com.fashion.inventory.dto.response.InventoryResponse;
 import com.fashion.inventory.dto.response.PaginationResponse;
+import com.fashion.inventory.dto.response.kafka.OrderCreatedEvent;
 import com.fashion.inventory.dto.response.kafka.ProductApprovedEvent;
 import com.fashion.inventory.entity.Inventory;
 
@@ -34,10 +36,8 @@ public interface InventoryService {
     void deleteInventoryById(UUID id);
     // Internal use in order-service
     void changeQuantityUse(
-        UUID productId, 
-        UUID productSku, 
-        Integer quantity,
-        boolean decreaseQuantityAvailable // TRUE: trừ số lượng khả dụng, cộng số lượng giữ. FALSE: hồi số lượng khả dụng, trừ số lượng giữ
+        Collection<ReturnAvailableQuantity> requests,
+        UUID eventId
     );
     void checkInternalQuantityAvailableForOrder(Collection<InnerOrderDetail_FromOrderRequest> inventory);
 }
