@@ -39,6 +39,7 @@ import com.fashion.order.dto.response.OrderResponse;
 import com.fashion.order.dto.response.PaginationResponse;
 import com.fashion.order.dto.response.internal.AddressResponse;
 import com.fashion.order.dto.response.internal.PaymentResponse;
+import com.fashion.order.dto.response.internal.PaymentResponse.InnerInternalPayment;
 import com.fashion.order.dto.response.internal.ProductResponse;
 import com.fashion.order.dto.response.internal.ProductSkuResponse;
 import com.fashion.order.dto.response.internal.ShippingResponse;
@@ -167,7 +168,7 @@ public class OrderServiceImpl implements OrderService{
             // Initialize kafka data
             OrderCreatedEvent kafkaEventData = OrderCreatedEvent.builder()
                 .inventories(new HashSet<>())
-                .payment(new PaymentResponse())
+                .payment(new InnerInternalPayment())
                 .promotions(new HashMap<>())
                 .shipping(new ShippingResponse())
                 .build();
@@ -302,7 +303,7 @@ public class OrderServiceImpl implements OrderService{
             this.couponService.decreaseStock(coupon.getId());
 
             kafkaEventData.setPayment(
-                PaymentResponse.builder()
+                InnerInternalPayment.builder()
                 .status(order.getPaymentStatus())
                 .amount(order.getFinalPrice())
                 .paymentMethod(order.getPaymentMethod())
@@ -392,6 +393,25 @@ public class OrderServiceImpl implements OrderService{
         throw new UnsupportedOperationException("Unimplemented method 'deleteOrderById'");
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public OrderResponse getInternalOrderById(UUID id, Boolean checkStatus){
+        try {
+            Order order = this.orderRepository.findById(id).orElseThrow(
+                () -> new ServiceException(EnumError.ORDER_ORDER_ERR_NOT_FOUND_ID,"order.not.found.id", Map.of("id", id))
+            );
+            if(checkStatus){
+                order.getStatus().validateUpdateOrder(orderUpdateStatusErrorProvider);
+            }
+            return this.orderMapper.toDto(order);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: [getInternalOrderById] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.ORDER_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
     private String generateUniqueOrderCode() {
         final int MAX_ATTEMPTS = 5; 
         try {
@@ -473,7 +493,7 @@ public class OrderServiceImpl implements OrderService{
             // Initialize kafka data
             OrderCreatedEvent kafkaEventData = OrderCreatedEvent.builder()
                 .inventories(new HashSet<>())
-                .payment(new PaymentResponse())
+                .payment(new InnerInternalPayment())
                 .promotions(new HashMap<>())
                 .shipping(new ShippingResponse())
                 .build();
@@ -702,7 +722,7 @@ public class OrderServiceImpl implements OrderService{
 
             if (changedFields.containsKey("paymentMethod")) {
                 kafkaEventData.setPayment(
-                    PaymentResponse.builder()
+                    InnerInternalPayment.builder()
                     .id(orderDB.getPaymentId())
                     .status(orderDB.getPaymentStatus())
                     .amount(orderDB.getFinalPrice())

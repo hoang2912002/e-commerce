@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.order.common.annotation.ApiMessageResponse;
+import com.fashion.order.common.annotation.InternalEndpoint;
 import com.fashion.order.dto.request.OrderRequest;
 import com.fashion.order.dto.request.search.SearchRequest;
 import com.fashion.order.dto.response.OrderResponse;
@@ -97,4 +98,13 @@ public class OrderController {
     ) {
         ResponseEntity.noContent().build();
     }
+
+    //-------------Internal endpoint-------------------
+    @GetMapping("/internal/get-internal-order-and-check-approval-by-id")
+    @InternalEndpoint
+    @ApiMessageResponse("order.success.get.single")
+    public ResponseEntity<OrderResponse> getInternalOrderAndCheckStatusById(@RequestParam UUID orderId) {
+        return ResponseEntity.ok(this.orderService.getInternalOrderById(orderId, true));
+    }
+    
 }

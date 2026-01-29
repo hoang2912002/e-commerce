@@ -18,4 +18,5 @@ public interface OrderService {
     OrderResponse getOrderByCode(String code);
     PaginationResponse<List<OrderResponse>> getAllOrder(SearchRequest request);
     void deleteOrderById(UUID id);
+    OrderResponse getInternalOrderById(UUID id, Boolean checkStatus);
 }

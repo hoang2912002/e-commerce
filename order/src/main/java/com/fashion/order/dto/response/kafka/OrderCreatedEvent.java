@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.context.ApplicationEvent;
 
 import com.fashion.order.dto.response.internal.PaymentResponse;
+import com.fashion.order.dto.response.internal.PaymentResponse.InnerInternalPayment;
 import com.fashion.order.dto.response.internal.PromotionResponse;
 import com.fashion.order.dto.response.internal.ShippingResponse;
 import com.fashion.order.dto.response.internal.InventoryResponse.ReturnAvailableQuantity;
@@ -28,7 +29,7 @@ import lombok.experimental.FieldDefaults;
 public class OrderCreatedEvent {
     Collection<ReturnAvailableQuantity> inventories;
     ShippingResponse shipping;
-    PaymentResponse payment;
+    InnerInternalPayment payment;
     Map<UUID, Integer> promotions;
 
     @Getter
