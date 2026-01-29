@@ -84,3 +84,11 @@ jwt:
 role:
   admin: ADMIN
   seller: SELLER
+momo:
+  partner-code: MOMO
+  end-point: https://test-payment.momo.vn/v2/gateway/api/create
+vnpay:
+  partner-code: VNPAY
+  end-point: https://test-payment.vnpay.vn/v2/gateway/api/create
+cod:
+  partner-code: COD

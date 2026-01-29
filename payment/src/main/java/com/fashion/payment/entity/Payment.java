@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.hibernate.annotations.GenericGenerator;
 
+import com.fashion.payment.common.annotation.Searchable;
 import com.fashion.payment.common.enums.PaymentEnum;
 
 import jakarta.persistence.CascadeType;
@@ -51,6 +52,7 @@ public class Payment extends AbstractAuditingEntity<UUID>{
     @Column(name = "amount", nullable = false)
     BigDecimal amount;
 
+    @Searchable
     @Column(name = "status", nullable = false)
     @Enumerated(EnumType.STRING)
     PaymentEnum status; // Final status

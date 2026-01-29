@@ -3,6 +3,7 @@ package com.fashion.payment.entity;
 import java.util.List;
 import java.util.UUID;
 
+import com.fashion.payment.common.annotation.Searchable;
 import com.fashion.payment.common.enums.PaymentMethodEnum;
 
 import jakarta.persistence.Column;
@@ -39,9 +40,11 @@ public class PaymentMethod extends AbstractAuditingEntity<Long>{
         return this.id;
     }
 
+    @Searchable
     @Column(name = "code", unique = true, nullable = false, length = 50)
     String code;
 
+    @Searchable
     @Column(name = "name", nullable = false, length = 100)
     String name;
 
@@ -49,6 +52,8 @@ public class PaymentMethod extends AbstractAuditingEntity<Long>{
     @Column(name = "status", nullable = false, length = 30)
     PaymentMethodEnum status;
 
+    @Column(name = "activated")
+    Boolean activated;
     // @OneToMany(mappedBy = "paymentMethod",fetch = FetchType.LAZY)
     // List<Payment> payments;
 }

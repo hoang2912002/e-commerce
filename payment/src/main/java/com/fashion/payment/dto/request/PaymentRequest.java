@@ -1,4 +1,4 @@
-package com.fashion.payment.dto.response;
+package com.fashion.payment.dto.request;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -7,27 +7,39 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fashion.payment.common.enums.PaymentEnum;
-import com.fashion.payment.dto.response.PaymentMethodResponse.InnerPaymentMethodResponse;
-import com.fashion.payment.dto.response.PaymentTransactionResponse.InnerPaymentTransactionResponse;
+import com.fashion.payment.dto.request.PaymentMethodRequest.InnerPaymentMethodRequest;
+import com.fashion.payment.dto.request.PaymentTransactionRequest.InnerPaymentTransactionRequest;
 
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
+
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PaymentResponse {
+public class PaymentRequest {
+    public interface Create {};
+    public interface Update {};
+
+    @NotNull(groups = Update.class, message = "payment.id.notNull")
     UUID id;
+
+    @NotNull(groups = {Create.class,Update.class}, message = "payment.amount.notNull")
     BigDecimal amount;
+
     @Enumerated(EnumType.STRING)
     PaymentEnum status;
+
+    @NotNull(groups = {Create.class,Update.class}, message = "payment.orderId.notNull")
     UUID orderId;
 
     LocalDateTime paidAt;
@@ -36,31 +48,18 @@ public class PaymentResponse {
     String updatedBy;
     Instant updatedAt;
     Boolean activated;
-    InnerPaymentMethodResponse paymentMethod;
-    List<InnerPaymentTransactionResponse> paymentTransactions;
+
+    @Valid
+    InnerPaymentMethodRequest paymentMethod;
+
+    List<InnerPaymentTransactionRequest> paymentTransaction;
 
     @NoArgsConstructor
     @AllArgsConstructor
     @Data
     @Builder
     @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class InnerPaymentResponse {
+    public static class InnerPaymentRequest {
         UUID id;
-        BigDecimal amount;
-        UUID orderId;
-    }
-
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Data
-    @Builder
-    @FieldDefaults(level = AccessLevel.PRIVATE)
-    public static class InnerInternalPayment {
-        UUID id;
-        BigDecimal amount;
-        UUID orderId;
-        String paymentMethod;
-        String note;
-        PaymentEnum status;
     }
 }
