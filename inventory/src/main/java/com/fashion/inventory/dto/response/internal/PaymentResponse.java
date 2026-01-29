@@ -38,4 +38,18 @@ public class PaymentResponse {
     String updatedBy;
     Instant updatedAt;
     boolean activated;
+
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Data
+    @Builder
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class InnerInternalPayment {
+        UUID id;
+        BigDecimal amount;
+        UUID orderId;
+        String paymentMethod;
+        String note;
+        PaymentEnum status;
+    }
 }

@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationEvent;
 
 import com.fashion.inventory.dto.request.InventoryRequest.ReturnAvailableQuantity;
 import com.fashion.inventory.dto.response.internal.PaymentResponse;
+import com.fashion.inventory.dto.response.internal.PaymentResponse.InnerInternalPayment;
 import com.fashion.inventory.dto.response.internal.ShippingResponse;
 
 import lombok.AccessLevel;
@@ -26,7 +27,7 @@ import lombok.experimental.FieldDefaults;
 public class OrderCreatedEvent {
     Collection<ReturnAvailableQuantity> inventories;
     ShippingResponse shipping;
-    PaymentResponse payment;
+    InnerInternalPayment payment;
     Map<UUID, Integer> promotions;
 
     @Getter
