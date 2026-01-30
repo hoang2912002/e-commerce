@@ -31,15 +31,15 @@ public class CodPaymentStrategy implements PaymentStrategy{
     PaymentMapper paymentMapper;
 
     @Override
-    public PaymentResponse process(Payment payment) {
+    public PaymentResponse process(Payment payment, UUID eventId) {
         if ( payment == null ) {
             throw new ServiceException(EnumError.PAYMENT_PAYMENT_PROCESS_NOT_NULL, "payment.data.notNull");
         }
         
         PaymentTransaction successTrans = PaymentTransaction.builder()
             .payment(payment)
-            .eventId(UUID.randomUUID())
-            .transactionId("COD_SUCCESS_" + UUID.randomUUID())
+            .eventId(eventId)
+            .transactionId("COD_SUCCESS_" + eventId)
             .status(PaymentEnum.SUCCESS)
             .rawResponse(null)
             .note("Force Success after creating link")

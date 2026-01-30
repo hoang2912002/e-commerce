@@ -29,7 +29,7 @@ public class VnpayPaymentStrategy implements PaymentStrategy{
     PaymentTransactionRepository paymentTransactionRepository;
     PaymentMapper paymentMapper;
     @Override
-    public PaymentResponse process(Payment payment) {
+    public PaymentResponse process(Payment payment, UUID eventId) {
         if ( payment == null ) {
             throw new ServiceException(EnumError.PAYMENT_PAYMENT_PROCESS_NOT_NULL, "payment.data.notNull");
         }
@@ -40,8 +40,8 @@ public class VnpayPaymentStrategy implements PaymentStrategy{
         );
         PaymentTransaction successTrans = PaymentTransaction.builder()
             .payment(payment)
-            .eventId(UUID.randomUUID())
-            .transactionId("VNPAY_SUCCESS_" + UUID.randomUUID())
+            .eventId(eventId)
+            .transactionId("VNPAY_SUCCESS_" + eventId)
             .status(PaymentEnum.SUCCESS)
             .rawResponse(mockRedirectUrl)
             .note("Force Success after creating link")

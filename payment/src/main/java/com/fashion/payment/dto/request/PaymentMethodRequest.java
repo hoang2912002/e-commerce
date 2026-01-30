@@ -46,5 +46,6 @@ public class PaymentMethodRequest {
     public static class InnerPaymentMethodRequest {
         @NotNull(groups = {PaymentRequest.Create.class, PaymentRequest.Update.class}, message = "payment.method.id.notNull")
         Long id;
+        String code;
     }
 }

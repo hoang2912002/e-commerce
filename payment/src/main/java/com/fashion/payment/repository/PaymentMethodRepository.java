@@ -36,4 +36,7 @@ public interface PaymentMethodRepository extends JpaRepository<PaymentMethod,Lon
         @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
     })
     Optional<PaymentMethod> lockPaymentMethodById(@Param("id") Long id);
+
+
+    Optional<PaymentMethod> findByCode(String code);
 }

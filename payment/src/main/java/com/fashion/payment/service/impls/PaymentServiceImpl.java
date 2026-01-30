@@ -1,5 +1,6 @@
 package com.fashion.payment.service.impls;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ import com.fashion.payment.common.response.ApiResponse;
 import com.fashion.payment.common.util.PageableUtils;
 import com.fashion.payment.common.util.SpecificationUtils;
 import com.fashion.payment.dto.request.PaymentRequest;
+import com.fashion.payment.dto.request.PaymentMethodRequest.InnerPaymentMethodRequest;
 import com.fashion.payment.dto.request.search.SearchModel;
 import com.fashion.payment.dto.request.search.SearchOption;
 import com.fashion.payment.dto.request.search.SearchRequest;
@@ -38,6 +40,8 @@ import com.fashion.payment.mapper.PaymentMapper;
 import com.fashion.payment.properties.PaymentCodProperties;
 import com.fashion.payment.repository.PaymentMethodRepository;
 import com.fashion.payment.repository.PaymentRepository;
+import com.fashion.payment.repository.PaymentTransactionRepository;
+import com.fashion.payment.service.PaymentMethodService;
 import com.fashion.payment.service.PaymentService;
 import com.fashion.payment.service.strategy.PaymentStrategy;
 
@@ -56,24 +60,15 @@ public class PaymentServiceImpl implements PaymentService{
     PaymentMethodRepository paymentMethodRepository;
     PaymentProcessorFactory paymentProcessorFactory;
     PaymentCodProperties paymentCodProperties;
-    @Override
-    @Transactional(rollbackFor = ServiceException.class)
-    public void UpSertPayment(InnerInternalPayment payment, UUID eventId) {
-        try {
+    PaymentTransactionRepository paymentTransactionRepository;
+    PaymentMethodService paymentMethodService;
 
-        } catch (ServiceException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("PAYMENT-SERVICE: [UpSertPayment] Error: {}", e.getMessage(), e);
-            throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
-        } 
-    }
     @Override
     @Transactional(rollbackFor = ServiceException.class)
     public PaymentResponse createPayment(PaymentRequest request) {
         log.info("PAYMENT-SERVICE: [createPayment] Start create payment");
         try {
-            return this.upSertPayment(request);
+            return this.upSertPayment(request, UUID.randomUUID(), false);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -86,7 +81,7 @@ public class PaymentServiceImpl implements PaymentService{
     public PaymentResponse updatePayment(PaymentRequest request) {
         log.info("PAYMENT-SERVICE: [updatePayment] Start update payment");
         try {
-            return this.upSertPayment(request);
+            return this.upSertPayment(request, UUID.randomUUID(), false);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -148,8 +143,56 @@ public class PaymentServiceImpl implements PaymentService{
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'deletePaymentById'");
     }
-    
-    private PaymentResponse upSertPayment(PaymentRequest request) {
+
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public void upSertPayment(InnerInternalPayment request, UUID eventId) {
+        try {
+            if(!this.checkExistedDataPayment(request)) return;
+            if(this.paymentTransactionRepository.existsByEventId(eventId)){
+                log.warn("PAYMENT-SERVICE: Event {} already processed. Skipping.", eventId);
+                return;             
+            }
+            InnerPaymentMethodRequest pMethodRequest = InnerPaymentMethodRequest.builder()
+                .code(request.getPaymentMethod())
+                .build();
+            PaymentRequest paymentRequest = PaymentRequest.builder()
+                .id(request.getId())
+                .amount(request.getAmount())
+                .status(request.getStatus())
+                .orderId(request.getOrderId())
+                .paymentMethod(pMethodRequest)
+                .build();
+            this.upSertPayment(paymentRequest,eventId,true);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PAYMENT-SERVICE: [UpSertPayment] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        } 
+    }
+    /**
+     * @checkPayment received from kafka
+     * @return boolean
+     */
+    private boolean checkExistedDataPayment(InnerInternalPayment payment){
+        try {
+            for (Field field : InnerInternalPayment.class.getDeclaredFields()) {
+                if(field.getName().contains("id")) continue;
+                field.setAccessible(true);
+                Object dataPayment = field.get(payment);
+                if(dataPayment == null) return false;
+            }
+            return true;
+            
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PAYMENT-SERVICE: [checkExistedDataPayment] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+    private PaymentResponse upSertPayment(PaymentRequest request, UUID eventId, boolean skipCheckOrder) {
         try {
             Payment payment;
             boolean isUpdate = request.getId() != null;
@@ -168,26 +211,26 @@ public class PaymentServiceImpl implements PaymentService{
                 payment.setStatus(PaymentEnum.PENDING);
             }
             this.checkExistedPayment(request.getOrderId(), request.getId());
-            ApiResponse<OrderResponse> apiRes = this.orderClient.getInternalOrderById(request.getOrderId());
-            OrderResponse orderResponse = apiRes.getData();
-            
-            PaymentMethod paymentMethod = this.paymentMethodRepository.findById(request.getPaymentMethod().getId()).orElseThrow(
-                () -> new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_ERR_NOT_FOUND_ID, "payment.not.found.id", Map.of("paymentMethodId", request.getPaymentMethod().getId()))
-            );
+            OrderResponse orderResponse = null;
+            if(!skipCheckOrder){
+                ApiResponse<OrderResponse> apiRes = this.orderClient.getInternalOrderById(request.getOrderId());
+                orderResponse = apiRes.getData();
+            }
+            PaymentMethod paymentMethod = this.paymentMethodService.getPaymentMethodByIdOrCode(request.getPaymentMethod().getId(), request.getPaymentMethod().getCode());
             if(paymentMethod.getStatus() != PaymentMethodEnum.ACTIVE){
                 throw new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_STATUS_NOT_MATCHING, "payment.method.status.not.support.current");
             }
 
             payment.setActivated(true);
             payment.setPaymentMethod(paymentMethod);
-            payment.setAmount(orderResponse.getFinalPrice()); 
-            payment.setOrderId(orderResponse.getId());
+            payment.setAmount(orderResponse != null ? orderResponse.getFinalPrice() : request.getAmount()); 
+            payment.setOrderId(orderResponse != null ? orderResponse.getId() : request.getOrderId());
 
             String action = isUpdate ? "UPDATE" : "INIT";
-            String transactionId = String.join("_", paymentMethod.getCode().toUpperCase(), action, UUID.randomUUID().toString());
+            String transactionId = String.join("_", paymentMethod.getCode().toUpperCase(), action, eventId.toString());
 
             PaymentTransaction paymentTransaction = PaymentTransaction.builder()
-                .eventId(UUID.randomUUID())
+                .eventId(eventId)
                 .transactionId(transactionId)
                 .status(PaymentEnum.PENDING)
                 .payment(payment) 
@@ -201,7 +244,7 @@ public class PaymentServiceImpl implements PaymentService{
             PaymentResponse paymentResponse = this.paymentMapper.toDto(payment);
             if (!paymentMethod.getCode().equalsIgnoreCase(this.paymentCodProperties.getPartnerCode())) {
                 PaymentStrategy paymentStrategy = this.paymentProcessorFactory.getProcessor(paymentMethod.getCode().toLowerCase());
-                paymentResponse = paymentStrategy.process(payment);
+                paymentResponse = paymentStrategy.process(payment, eventId);
             }
 
             return paymentResponse;

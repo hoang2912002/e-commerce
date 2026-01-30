@@ -36,7 +36,7 @@ public class MomoPaymentStrategy implements PaymentStrategy {
     PaymentMomoProperties paymentMomoProperties;
 
     @Override
-    public PaymentResponse process(Payment payment) {
+    public PaymentResponse process(Payment payment, UUID eventId) {
         if ( payment == null ) {
             throw new ServiceException(EnumError.PAYMENT_PAYMENT_PROCESS_NOT_NULL, "payment.data.notNull");
         }
@@ -47,8 +47,8 @@ public class MomoPaymentStrategy implements PaymentStrategy {
         );
         PaymentTransaction successTrans = PaymentTransaction.builder()
             .payment(payment)
-            .eventId(UUID.randomUUID())
-            .transactionId("MOMO_SUCCESS_" + UUID.randomUUID()) // Giả lập mã GD thành công
+            .eventId(eventId)
+            .transactionId("MOMO_SUCCESS_" + eventId) // Giả lập mã GD thành công
             .status(PaymentEnum.SUCCESS)
             .rawResponse(mockRedirectUrl)
             .note("Force Success after creating link")

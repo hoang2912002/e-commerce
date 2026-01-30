@@ -136,6 +136,31 @@ public class PaymentMethodServiceImpl implements PaymentMethodService{
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'deletePaymentMethodById'");
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentMethod getPaymentMethodByIdOrCode(Long id, String code) {
+        try {
+            boolean excludedCode = code != null;
+            PaymentMethod paymentMethod = (excludedCode ? 
+                this.paymentMethodRepository.findByCode(code.toLowerCase()) :
+                this.paymentMethodRepository.findById(id)
+            ).orElseThrow(
+                () -> {
+                    return excludedCode ? 
+                        new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_DATA_EXISTED_CODE, "payment.not.found.code", Map.of("paymentMethodCode", code)) :
+                        new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_ERR_NOT_FOUND_ID, "payment.not.found.id", Map.of("paymentMethodId", id))
+                    ;
+                }
+            );
+            return paymentMethod;
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PAYMENT-SERVICE: [getPaymentMethodByIdOrCode] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
     
 
     private void checkExistedPaymentMethod(String code, String name, Long excludedId){

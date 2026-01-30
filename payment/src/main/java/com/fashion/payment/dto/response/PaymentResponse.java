@@ -60,7 +60,6 @@ public class PaymentResponse {
         BigDecimal amount;
         UUID orderId;
         String paymentMethod;
-        String note;
         PaymentEnum status;
     }
 }

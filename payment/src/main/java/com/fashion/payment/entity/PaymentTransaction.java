@@ -39,7 +39,7 @@ public class PaymentTransaction extends AbstractAuditingEntity<Long> {
         return this.id;
     }
 
-    @Column(name = "event_id", unique = true)
+    @Column(name = "event_id", nullable = false)
     UUID eventId;
 
     @Column(name = "transaction_id", nullable = false)
