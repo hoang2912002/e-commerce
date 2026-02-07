@@ -26,11 +26,11 @@ public abstract class AbstractAuditingEntity<T> implements Serializable{
     public abstract T getId();
 
     @CreatedBy
-    @Column(name = "created_by", nullable = false, length = 50, updatable = false)
+    @Column(name = "created_by", length = 50, updatable = false)
     String createdBy;
 
     @CreatedDate
-    @Column(name = "created_at", updatable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     Instant createdAt = Instant.now();
 
     @LastModifiedBy

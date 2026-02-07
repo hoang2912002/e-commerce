@@ -11,6 +11,7 @@ import org.hibernate.annotations.GenericGenerator;
 import com.fashion.payment.common.annotation.Searchable;
 import com.fashion.payment.common.enums.PaymentEnum;
 
+import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -19,6 +20,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -31,16 +34,21 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "payments")
+@Table(name = "payments",
+    indexes = {
+        @Index(name = "idx_payment_order_id", columnList = "order_id")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@IdClass(PaymentId.class) // Primary key class when using composite keys (partition)
 public class Payment extends AbstractAuditingEntity<UUID>{
     @Id
     @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+    // @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
     @Column(name = "id", updatable = false, nullable = false, columnDefinition = "uuid")
     UUID id;
 
@@ -57,7 +65,7 @@ public class Payment extends AbstractAuditingEntity<UUID>{
     @Enumerated(EnumType.STRING)
     PaymentEnum status; // Final status
 
-    @Column(name = "order_id", unique = true)
+    @Column(name = "order_id", unique = true, nullable = false)
     UUID orderId;
 
     @Column(name = "paid_at")
