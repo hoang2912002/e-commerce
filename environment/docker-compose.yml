@@ -1,17 +1,18 @@
+version: '3.2'
 networks:
   my-internal-net:
     driver: bridge
 
 volumes:
-  postgres_data:
-  mysql_data:
+#   postgres_data:
+#   mysql_data:
   mongodb_data:
 
 services:
   # --- THÊM KAFKA ---
   kafka:
     image: apache/kafka:3.7.0
-    container_name: kafka-server
+    container_name: kafka
     networks:
       - my-internal-net
     ports:
@@ -32,8 +33,22 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
 
+      KAFKA_NUM_NETWORK_THREADS: 6
+      KAFKA_NUM_IO_THREADS: 12
+      KAFKA_LOG_RETENTION_MS: 604800000
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+      # --- HEAP MEMORY ---
+      KAFKA_HEAP_OPTS: "-Xmx512M -Xms256M"
+    volumes:
+      - ./data/apache/kafka:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
   # --- THÊM POSTGRESQL ---
-  db:
+  postgres-db:
     image: postgres:15-alpine
     container_name: postgres-db
     networks:
@@ -43,13 +58,14 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: 123456 # Thay đổi mật khẩu ở đây
-      # POSTGRES_DB: postgreSQL # Tên database khởi tạo
+      POSTGRES_DB: e_product_service # DB chính
+      POSTGRES_MULTIPLE_DATABASES: e_order_service,e_inventory_service,e_payment_service,e_shipping_service
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql # Thêm dòng này
+      - ./data/db_data_postgres:/var/lib/postgresql/data
+      - ./postgresql/init:/docker-entrypoint-initdb.d/
 
   # --- THÊM PGADMIN ---
-  pgadmin:
+  pgadmin-client:
     image: dpage/pgadmin4
     container_name: pgadmin-client
     networks:
@@ -60,7 +76,7 @@ services:
       PGADMIN_DEFAULT_EMAIL: admin@admin.com # Email để login pgAdmin
       PGADMIN_DEFAULT_PASSWORD: root         # Password để login pgAdmin
     depends_on:
-      - db
+      - postgres-db
   # ---------------- MYSQL ----------------
   mysql:
     image: mysql:8.0
@@ -73,7 +89,14 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: 123456
     volumes:
-      - mysql_data:/var/lib/mysql
+      # - mysql_data:/var/lib/mysql
+      - ./data/db_data_mysql:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d/
+    command: [
+      '--character-set-server=utf8mb4',
+      '--collation-server=utf8mb4_unicode_ci',
+      '--skip-character-set-client-handshake'  # Buộc tất cả kết nối sử dụng utf8mb4
+    ]
 
   # ---------------- MONGODB ----------------
   mongodb:
@@ -89,3 +112,19 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: root
     volumes:
       - mongodb_data:/data/db
+
+  # ---------------- KAFKA UI ----------------
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8888:8080"  # Map Kafka UI to port 8888 on the host
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: env-microservice_fashion      # Cluster name
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092  # Cluster bootstrap servers
+      DYNAMIC_CONFIG_ENABLED: 'true'
+    networks:
+      - my-internal-net
