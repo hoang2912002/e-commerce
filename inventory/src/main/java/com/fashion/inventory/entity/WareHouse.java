@@ -16,6 +16,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -26,7 +27,12 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "ware_houses")
+@Table(name = "ware_houses",
+    indexes = {
+        @Index(name = "idx_warehouse_code", columnList = "code"),
+        @Index(name = "idx_warehouse_name", columnList = "name"),
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

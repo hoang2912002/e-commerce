@@ -13,6 +13,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -24,7 +25,12 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "inventory_transactions")
+@Table(name = "inventory_transactions",
+    indexes = {
+        @Index(name = "idx_inv_trx_product_sku", columnList = "product_sku_id"),
+        @Index(name = "idx_inv_trx_reference", columnList = "reference_id"),
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

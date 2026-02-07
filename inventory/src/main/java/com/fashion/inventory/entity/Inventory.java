@@ -10,6 +10,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -26,6 +27,12 @@ import lombok.experimental.FieldDefaults;
     name = "inventories",
     uniqueConstraints = {
         @UniqueConstraint(columnNames = {"product_sku_id", "warehouse_id"})
+    },
+    indexes = {
+        @Index(name = "idx_inventory_product_id", columnList = "product_id"),
+        @Index(name = "idx_inventory_sku_id", columnList = "product_sku_id"),
+        @Index(name = "idx_inventory_warehouse_id", columnList = "warehouse_id"),
+        @Index(name = "idx_inventory_product_sku_id", columnList = "product_id, product_sku_id"),
     }
 )
 @Data
