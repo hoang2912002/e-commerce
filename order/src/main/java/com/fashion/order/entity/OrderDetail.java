@@ -1,18 +1,25 @@
 package com.fashion.order.entity;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.databind.annotation.JsonAppend.Attr;
 
+import jakarta.persistence.AttributeOverride;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinColumns;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -22,23 +29,31 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "order_details")
+@Table(name = "order_details",
+    indexes = {
+        @Index(name = "idx_order_detail_order_id", columnList = "order_id"),
+        @Index(name = "idx_order_detail_product_id", columnList = "product_id"),
+        @Index(name = "idx_order_detail_product_sku_id", columnList = "product_sku_id"),
+        @Index(name = "idx_order_detail_created_at", columnList = "created_at")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@IdClass(OrderDetailId.class) // Primary key class when using composite keys (partition)
 public class OrderDetail extends AbstractAuditingEntity<Long>{
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id", updatable = false, nullable = false, unique = true)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "order_detail_seq")
+    @SequenceGenerator(name = "order_detail_seq", sequenceName = "order_detail_seq", allocationSize = 1)
+    @Column(name = "id")
     Long id;
     
     @Override
     public Long getId() {
         return this.id;
     }
-    
     @Column(name = "price_original", nullable = false)
     BigDecimal priceOriginal; //giá gốc
     
@@ -64,6 +79,12 @@ public class OrderDetail extends AbstractAuditingEntity<Long>{
     UUID productSkuId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id")
+    @JoinColumns({
+        @JoinColumn(name = "order_id", referencedColumnName = "id", insertable = false, updatable = false),
+        @JoinColumn(name = "created_at", referencedColumnName = "created_at", insertable = false, updatable = false)
+    })
     Order order;
+
+    @Column(name = "order_id")
+    UUID orderId;
 }

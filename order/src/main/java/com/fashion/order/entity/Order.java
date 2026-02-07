@@ -20,6 +20,8 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -33,16 +35,25 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "orders")
+@Table(name = "orders",
+    indexes = {
+        @Index(name = "idx_order_code", columnList = "code"),
+        @Index(name = "idx_order_user_id", columnList = "user_id"),
+        @Index(name = "idx_order_status", columnList = "status"),
+        @Index(name = "idx_order_created_at", columnList = "created_at"),
+        @Index(name = "idx_order_code_unique", columnList = "code,created_at")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@IdClass(OrderId.class) // Primary key class when using composite keys (partition)
 public class Order extends AbstractAuditingEntity<UUID>{
     @Id
     @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
+    // @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
     @Column(name = "id", updatable = false, nullable = false, columnDefinition = "uuid")
     UUID id;
 

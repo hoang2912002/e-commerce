@@ -21,6 +21,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -32,7 +33,13 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "coupons")
+@Table(name = "coupons",
+    indexes = {
+        @Index(name = "idx_coupon_code", columnList = "code"),
+        @Index(name = "idx_coupon_name", columnList = "name"),
+        @Index(name = "idx_coupon_dates", columnList = "start_date, end_date")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
