@@ -23,6 +23,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -35,7 +36,15 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users",
+    indexes = {
+        @Index(name = "idx_phone_number", columnList = "phone_number"),
+        @Index(name = "idx_email", columnList = "email"),
+        @Index(name = "idx_email_full_name_phone_number", columnList = "email, full_name, phone_number"),
+        @Index(name = "idx_created_by", columnList = "created_by"),
+        @Index(name = "idx_role_id", columnList = "role_id")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

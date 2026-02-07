@@ -38,7 +38,7 @@ public class Permission extends AbstractAuditingEntity {
     }
 
     @Searchable
-    @Column(name = "name", length = 100)
+    @Column(name = "name", length = 100, nullable = false)
     String name;
 
     @Column(name = "api_path", length = 100)
