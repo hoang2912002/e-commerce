@@ -14,6 +14,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -25,7 +26,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 @Entity
-@Table(name = "categories")
+@Table(name = "categories",
+    indexes = {
+        @Index(name = "idx_category_parent_id", columnList = "parent_id")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -44,11 +49,11 @@ public class Category extends AbstractAuditingEntity<UUID>{
     }
 
     @Searchable
-    @Column(name = "name", length = 100)
+    @Column(name = "name", length = 100, nullable = false)
     String name;
 
     @Searchable
-    @Column(name = "slug", length = 100)
+    @Column(name = "slug", length = 100, nullable = false, unique = true)
     String slug;
 
     @Column(name = "activated")

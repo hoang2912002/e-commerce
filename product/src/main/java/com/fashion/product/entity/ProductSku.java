@@ -22,9 +22,15 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import jakarta.persistence.Index;
 
 @Entity
-@Table(name = "product_skus")
+@Table(name = "product_skus",
+    indexes = {
+        @Index(name = "idx_sku_product_id", columnList = "product_id"),
+        @Index(name = "idx_sku_sku", columnList = "sku")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

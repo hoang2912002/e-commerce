@@ -12,6 +12,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -23,7 +24,13 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 @Entity
-@Table(name = "products")
+@Table(name = "products",
+    indexes = {
+        @Index(name = "idx_product_name_slug", columnList = "name, slug"),
+        @Index(name = "idx_product_category_id", columnList = "category_id"),
+        @Index(name = "idx_product_shop_management_id", columnList = "shop_management_id")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

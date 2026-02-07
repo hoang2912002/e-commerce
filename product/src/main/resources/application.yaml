@@ -27,7 +27,7 @@ spring:
     language-default: en
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/e_product_service

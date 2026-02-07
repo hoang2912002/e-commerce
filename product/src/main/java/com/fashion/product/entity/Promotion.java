@@ -20,6 +20,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
@@ -30,7 +31,13 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 @Entity
-@Table(name = "promotions")
+@Table(name = "promotions",
+    indexes = {
+        @Index(name = "idx_promotion_code", columnList = "code"),
+        @Index(name = "idx_promotion_name", columnList = "name"),
+        @Index(name = "idx_promotion_start_end_date", columnList = "start_date, end_date")
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
