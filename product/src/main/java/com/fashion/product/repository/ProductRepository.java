@@ -19,15 +19,16 @@ import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 
 public interface ProductRepository extends JpaRepository<Product, UUID>, JpaSpecificationExecutor<Product>{
-    @Query("SELECT p FROM Product p WHERE p.slug = :slug AND p.category.id =:cateId AND p.shopManagement.id =:sm")
-    Optional<Product> findDuplicateForCreate(
+    // @Query("SELECT p FROM Product p WHERE p.slug = :slug AND p.category.id =:cateId AND p.shopManagement.id =:sm")
+    @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM Product p WHERE p.slug = :slug AND p.category.id =:cateId AND p.shopManagement.id =:sm")
+    boolean existsDuplicateForCreate(
         @Param("slug") String slug,
         @Param("cateId") UUID cateId,
         @Param("sm") UUID sm
     );
     
-    @Query("SELECT p FROM Product p WHERE p.slug = :slug AND p.category.id =:cateId AND p.shopManagement.id =:sm and p.id != :i")
-    Optional<Product> findDuplicateForUpdate(
+    @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM Product p WHERE p.slug = :slug AND p.category.id =:cateId AND p.shopManagement.id =:sm and p.id != :i")
+    boolean existsDuplicateForUpdate(
         @Param("slug") String slug,
         @Param("cateId") UUID categoryId,
         @Param("sm") UUID shopManagementId,

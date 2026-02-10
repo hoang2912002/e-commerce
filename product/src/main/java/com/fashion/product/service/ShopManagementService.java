@@ -13,8 +13,9 @@ import com.fashion.product.entity.ShopManagement;
 public interface ShopManagementService {
     ShopManagementResponse createShopManagement(ShopManagementRequest shopManagement);
     ShopManagementResponse updateShopManagement(ShopManagementRequest shopManagement);
-    ShopManagementResponse getShopManagementById(UUID id);
+    ShopManagementResponse getShopManagementById(UUID id, Long version);
     PaginationResponse<List<ShopManagementResponse>> getAllShopManagement(SearchRequest request);
     void deleteShopManagementById(UUID id);
     Map<String, Object[]> detectChangedFields(ShopManagement oldData, ShopManagement newData);
+    ShopManagement fetchShopManagement(UUID id);
 }

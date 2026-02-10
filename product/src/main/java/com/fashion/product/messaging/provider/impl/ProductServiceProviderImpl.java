@@ -14,6 +14,7 @@ import com.fashion.product.dto.response.kafka.KafkaEvent;
 import com.fashion.product.dto.response.kafka.ProductApprovedEvent;
 import com.fashion.product.dto.response.kafka.ShopManagementAddressEvent;
 import com.fashion.product.dto.response.kafka.ProductApprovedEvent.InternalProductApprovedEvent;
+import com.fashion.product.dto.response.kafka.ShopManagementAddressEvent.InternalShopManagementAddressEvent;
 import com.fashion.product.messaging.provider.ProductServiceProvider;
 import com.fashion.product.properties.KafkaTopicApprovalHistoryProperties;
 import com.fashion.product.properties.KafkaTopicShopManagementProperties;
@@ -34,7 +35,9 @@ public class ProductServiceProviderImpl implements ProductServiceProvider{
     KafkaTopicApprovalHistoryProperties kafkaTopicApprovalHistoryProperties;
 
     @Override
-    public void produceShopManagementEventSuccess(ShopManagementAddressEvent addressData) {
+    @Async("virtualExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void produceShopManagementEventSuccess(InternalShopManagementAddressEvent event) {
         var topic = kafkaTopicShopManagementProperties.getShopManagementCreatedSuccess();
         log.info("PRODUCT-SERVICE: produceShopManagementEventSuccess(): shop management create successful to send event create address topic {}", topic);
 
@@ -45,13 +48,13 @@ public class ProductServiceProviderImpl implements ProductServiceProvider{
                 .source("product-service")
                 .version(1)
                 .build())
-            .payload(addressData)
+            .payload(event.getShopManagementAddressEvent())
             .build();
         kafkaService.send(topic, message);
     }
 
     @Override
-    @Async("taskExecutor") // Chạy thread riêng để không block luồng chính
+    @Async("virtualExecutor") // Chạy thread riêng để không block luồng chính
     // phase = AFTER_COMMIT đảm bảo DB xong xuôi mới gửi tin nhắn
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void produceProductApprovedEventSuccess(InternalProductApprovedEvent event) {

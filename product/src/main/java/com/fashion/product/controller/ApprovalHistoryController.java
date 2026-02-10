@@ -67,9 +67,10 @@ public class ApprovalHistoryController {
     @GetMapping("/{id}")
     @ApiMessageResponse("approval.history.success.get.single")
     public ResponseEntity<ApprovalHistoryResponse> getApprovalHistoryById(
-        @PathVariable("id") Long id    
+        @PathVariable("id") Long id,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.ok(this.approvalHistoryService.getApprovalHistoryById(id));
+        return ResponseEntity.ok(this.approvalHistoryService.getApprovalHistoryById(id, version));
     }
     
     @GetMapping("")

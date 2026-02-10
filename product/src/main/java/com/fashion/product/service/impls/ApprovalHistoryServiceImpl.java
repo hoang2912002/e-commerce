@@ -8,6 +8,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -31,17 +34,21 @@ import com.fashion.product.dto.request.search.SearchOption;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.ApprovalHistoryResponse;
 import com.fashion.product.dto.response.ApprovalMasterResponse;
+import com.fashion.product.dto.response.CategoryResponse;
 import com.fashion.product.dto.response.PaginationResponse;
+import com.fashion.product.dto.response.ProductResponse;
 import com.fashion.product.dto.response.RoleResponse;
 import com.fashion.product.dto.response.UserResponse;
 import com.fashion.product.dto.response.UserResponse.UserInsideToken;
 import com.fashion.product.entity.ApprovalHistory;
 import com.fashion.product.entity.ApprovalMaster;
 import com.fashion.product.entity.Product;
+import com.fashion.product.entity.ProductSku;
 import com.fashion.product.entity.ShopManagement;
 import com.fashion.product.exception.ServiceException;
 import com.fashion.product.intergration.IdentityClient;
 import com.fashion.product.mapper.ApprovalHistoryMapper;
+import com.fashion.product.properties.cache.ProductServiceCacheProperties;
 import com.fashion.product.repository.ApprovalHistoryRepository;
 import com.fashion.product.repository.ApprovalMasterRepository;
 import com.fashion.product.repository.ProductRepository;
@@ -54,6 +61,7 @@ import com.fashion.product.service.provider.ApprovalHistoryOrderErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistoryProductErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistorySmErrorProvider;
 import com.fashion.product.service.provider.ApprovalHistoryUpSertErrorProvider;
+import com.fashion.product.service.provider.CacheProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -77,21 +85,40 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     ApprovalHistorySmErrorProvider historyShopManagementErrorProvider;
     ApprovalHistoryInventoryErrorProvider historyInventoryErrorProvider;
     ApprovalHistoryOrderErrorProvider approvalHistoryOrderErrorProvider;
-
+    Executor virtualExecutor;
+    CacheProvider cacheProvider;
+    ProductServiceCacheProperties productServiceCacheProperties;
     public final static String ENTITY_TYPE_PRODUCT = "PRODUCT";
     public final static String ENTITY_TYPE_INVENTORY = "INVENTORY";
     public final static String ENTITY_TYPE_SHOP_MANAGEMENT = "SHOP_MANAGEMENT";
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public ApprovalHistoryResponse createApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType) {
         log.info("PRODUCT-SERVICE: [createApprovalHistory] Start create approval history");
         try {
             UserInsideToken user = SecurityUtils.getCurrentUserId().orElseThrow(
                 () -> new ServiceException(EnumError.PRODUCT_USER_INVALID_ACCESS_TOKEN,"auth.accessToken.invalid")
             );
-            UserResponse userRes = identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData();
+            // UserResponse userRes = identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData();
+            // ApprovalMaster approvalMaster = getApprovalMaster(approvalHistory, entityType);
+            CompletableFuture<UserResponse> userFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData(),
+                virtualExecutor
+            );
 
-            ApprovalMaster approvalMaster = getApprovalMaster(approvalHistory, entityType);
+            CompletableFuture<ApprovalMaster> approvalMasterFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.getApprovalMaster(approvalHistory, entityType), virtualExecutor);
+                
+            try {
+                CompletableFuture.allOf(userFuture, approvalMasterFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
+            UserResponse userRes = userFuture.join();
+            ApprovalMaster approvalMaster = approvalMasterFuture.join();
 
             validateUserPermission(userRes, approvalMaster);
             Object validatedEntity = null;
@@ -116,7 +143,9 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                 // Tạo tồn kho cho sản phẩm
                 this.productSkuService.validateAndMapSkuToInventoryRequests(product);
             }
-            return approvalHistoryMapper.toDto(saved);
+            ApprovalHistoryResponse approvalHistoryResponse = approvalHistoryMapper.toDto(saved);
+            this.updateApprovalHistoryCache(approvalHistoryResponse);
+            return approvalHistoryResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -126,27 +155,51 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType) {
         log.info("PRODUCT-SERVICE: [updateApprovalHistory] Start update approval history");
         try {
             UserInsideToken user = SecurityUtils.getCurrentUserId().orElseThrow(
                 () -> new ServiceException(EnumError.PRODUCT_USER_INVALID_ACCESS_TOKEN,"auth.accessToken.invalid")
             );
-            UserResponse userRes = identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData();
+            // UserResponse userRes = identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData();
+            // ApprovalMaster approvalMaster = getApprovalMaster(approvalHistory, entityType);
 
-            ApprovalHistory uApprovalHistory = this.approvalHistoryRepository.lockApprovalHistoryById(approvalHistory.getId()).orElseThrow(
-                () -> new ServiceException(
-                    EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID,
-                    "approval.history.not.found.id",
-                    Map.of("id", approvalHistory.getId())
-                )
+            // ApprovalHistory uApprovalHistory = this.approvalHistoryRepository.lockApprovalHistoryById(approvalHistory.getId()).orElseThrow(
+            //     () -> new ServiceException(
+            //         EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID,
+            //         "approval.history.not.found.id",
+            //         Map.of("id", approvalHistory.getId())
+            //     )
+            // );
+            CompletableFuture<UserResponse> userFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData(),
+                virtualExecutor
             );
 
-            ApprovalMaster approvalMaster = getApprovalMaster(approvalHistory, entityType);
+            CompletableFuture<ApprovalMaster> approvalMasterFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.getApprovalMaster(approvalHistory, entityType), virtualExecutor);
+            
+            CompletableFuture<Optional<ApprovalHistory>> approvalHistoryFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.approvalHistoryRepository.lockApprovalHistoryById(approvalHistory.getId()), virtualExecutor);
+            
+            try {
+                CompletableFuture.allOf(userFuture, approvalMasterFuture, approvalHistoryFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
+            UserResponse userRes = userFuture.join();
+            ApprovalMaster approvalMaster = approvalMasterFuture.join();
+            Optional<ApprovalHistory> approvalHistoryOpt = approvalHistoryFuture.join();
+            if(!approvalHistoryOpt.isPresent()){
+                throw new ServiceException(EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID,"approval.history.not.found.id",Map.of("id", approvalHistory.getId()));
+            }
             this.validateUserPermission(userRes, approvalMaster);
             if (!skipCheckPeriodDataExist) {
-                handleApprovalBusinessRules(approvalHistory, approvalMaster, uApprovalHistory);
+                handleApprovalBusinessRules(approvalHistory, approvalMaster, approvalHistoryOpt.get());
             }
             LocalDateTime approvedAt = LocalDateTime.now();
             String note = !approvalHistory.getNote().isBlank() ? approvalHistory.getNote().toLowerCase() : "create existing approval request";
@@ -159,7 +212,9 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             approvalHistory.setApprovedAt(approvedAt);
             approvalHistory.setActivated(true);
             ApprovalHistory saved = approvalHistoryRepository.save(approvalHistory);
-            return approvalHistoryMapper.toDto(saved);
+            ApprovalHistoryResponse approvalHistoryResponse = approvalHistoryMapper.toDto(saved);
+            this.updateApprovalHistoryCache(approvalHistoryResponse);
+            return approvalHistoryResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -170,16 +225,19 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
 
     @Override
     @Transactional(readOnly = true)
-    public ApprovalHistoryResponse getApprovalHistoryById(Long id) {
+    public ApprovalHistoryResponse getApprovalHistoryById(Long id, Long version) {
         try {
-            ApprovalHistory approvalHistory = this.approvalHistoryRepository.findById(id).orElseThrow(
-                () -> new ServiceException(
-                    EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID,
-                    "approval.history.not.found.id",
-                    Map.of("id", id)
-                )
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, ApprovalHistoryResponse.class, () -> 
+                this.approvalHistoryRepository.findById(id)
+                    .map((p) -> {
+                        ApprovalHistoryResponse approvalHistoryResponse = approvalHistoryMapper.toDto(p);
+                        approvalHistoryResponse.setVersion(System.currentTimeMillis());
+                        return approvalHistoryResponse;
+                    })
+                    .orElse(null)
             );
-            return approvalHistoryMapper.toDto(approvalHistory);
         } catch (Exception e) {
             log.error("PRODUCT-SERVICE: [getApprovalHistoryById] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
@@ -226,7 +284,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public void handleApprovalHistoryUpSertProduct(Product product, boolean isCreate, String entityType) {
         try {
             Map<ApprovalMasterEnum, ApprovalMaster> masterMap = this.getApprovalMasterMap(entityType);
@@ -628,5 +686,33 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
+
+    private String getCacheKey(Long id){
+        return this.productServiceCacheProperties.createCacheKey(
+            this.productServiceCacheProperties.getKeys().getApprovalHistoryInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(Long id){
+        return this.productServiceCacheProperties.createLockKey(
+            this.productServiceCacheProperties.getKeys().getApprovalHistoryInfo(),
+            id
+        );
+    }
+
+    private void updateApprovalHistoryCache(ApprovalHistoryResponse approvalHistoryResponse) {
+        try {
+            // Set current timestamp as version
+            approvalHistoryResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(approvalHistoryResponse.getId());
+            cacheProvider.put(cacheKey, approvalHistoryResponse);
+            
+            log.info("PRODUCT-SERVICE: Updated cache for approval history ID: {}", approvalHistoryResponse.getId());
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [updateApprovalHistoryCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    } 
 
 }

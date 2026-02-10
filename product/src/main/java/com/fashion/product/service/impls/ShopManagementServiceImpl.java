@@ -13,6 +13,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -36,12 +38,16 @@ import com.fashion.product.dto.request.search.SearchOption;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.AddressResponse;
 import com.fashion.product.dto.response.PaginationResponse;
+import com.fashion.product.dto.response.ProductResponse;
 import com.fashion.product.dto.response.ShopManagementResponse;
 import com.fashion.product.dto.response.UserResponse;
 import com.fashion.product.dto.response.AddressResponse.InnerAddressResponse;
 import com.fashion.product.dto.response.ApprovalMasterResponse;
+import com.fashion.product.dto.response.CategoryResponse;
 import com.fashion.product.dto.response.UserResponse.InnerUserResponse;
+import com.fashion.product.dto.response.kafka.ProductApprovedEvent.InternalProductApprovedEvent;
 import com.fashion.product.dto.response.kafka.ShopManagementAddressEvent;
+import com.fashion.product.dto.response.kafka.ShopManagementAddressEvent.InternalShopManagementAddressEvent;
 import com.fashion.product.entity.ApprovalHistory;
 import com.fashion.product.entity.ApprovalMaster;
 import com.fashion.product.entity.Promotion;
@@ -50,10 +56,12 @@ import com.fashion.product.exception.ServiceException;
 import com.fashion.product.intergration.IdentityClient;
 import com.fashion.product.mapper.ShopManagementMapper;
 import com.fashion.product.messaging.provider.ProductServiceProvider;
+import com.fashion.product.properties.cache.ProductServiceCacheProperties;
 import com.fashion.product.repository.ShopManagementRepository;
 import com.fashion.product.service.ApprovalHistoryService;
 import com.fashion.product.service.KafkaService;
 import com.fashion.product.service.ShopManagementService;
+import com.fashion.product.service.provider.CacheProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -69,6 +77,9 @@ public class ShopManagementServiceImpl implements ShopManagementService{
     final ShopManagementMapper shopManagementMapper;
     final ProductServiceProvider productServiceProvider;
     final ApprovalHistoryService approvalHistoryService;
+    final ProductServiceCacheProperties productServiceCacheProperties;
+    final CacheProvider cacheProvider;
+    final ApplicationEventPublisher applicationEventPublisher;
     @Value("${role.admin}")
     String roleAmin;
     
@@ -100,7 +111,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
         "slug"
     );
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public ShopManagementResponse createShopManagement(ShopManagementRequest request) {
         log.info("PRODUCT-SERVICE: [createShopManagement] Start create shop management");
         try {
@@ -134,8 +145,13 @@ public class ShopManagementServiceImpl implements ShopManagementService{
                 .province(request.getAddress().getProvince())
                 .shopManagementId(smCreate.getId())
                 .build();
-            this.productServiceProvider.produceShopManagementEventSuccess(addressEvent);
-            return this.shopManagementMapper.toDto(smCreate);
+
+            applicationEventPublisher.publishEvent(new InternalShopManagementAddressEvent(this, addressEvent));
+            // this.productServiceProvider.produceShopManagementEventSuccess(addressEvent);
+
+            ShopManagementResponse shopManagementResponse = this.shopManagementMapper.toDto(smCreate);
+            this.updateShopManagementCache(shopManagementResponse);
+            return shopManagementResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -145,7 +161,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public ShopManagementResponse updateShopManagement(ShopManagementRequest request) {
         log.info("PRODUCT-SERVICE: [updateShopManagement] Start create shop management");
         try {
@@ -185,9 +201,10 @@ public class ShopManagementServiceImpl implements ShopManagementService{
                 .province(request.getAddress().getProvince())
                 .shopManagementId(upSM.getId())
                 .build();
-            this.productServiceProvider.produceShopManagementEventSuccess(addressEvent);
-
-            return this.shopManagementMapper.toDto(this.shopManagementRepository.save(upSM));
+            applicationEventPublisher.publishEvent(new InternalShopManagementAddressEvent(this, addressEvent));
+            ShopManagementResponse shopManagementResponse = this.shopManagementMapper.toDto(this.shopManagementRepository.save(upSM));
+            this.updateShopManagementCache(shopManagementResponse);
+            return shopManagementResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -198,55 +215,58 @@ public class ShopManagementServiceImpl implements ShopManagementService{
 
     @Override
     @Transactional(rollbackFor = ServiceException.class, readOnly = true)
-    public ShopManagementResponse getShopManagementById(UUID id) {
+    public ShopManagementResponse getShopManagementById(UUID id, Long version) {
         try {
-            ShopManagement shopManagement = this.shopManagementRepository.findById(id).orElseThrow(
-                () -> new ServiceException(
-                    EnumError.PRODUCT_SHOP_MANAGEMENT_ERR_NOT_FOUND_ID,
-                    "shop.management.not.found.id")
-            );
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, ShopManagementResponse.class, () -> 
+                this.shopManagementRepository.findById(id)
+                    .map((p) -> {
+                        // Scatter-Gather Pattern (Mô hình Phân tán - Thu thập)
+                        // 1. Xử lý User Future: Kiểm tra userId trước khi gọi
+                        CompletableFuture<UserResponse> userFuture = (p.getUserId() != null)
+                            ? AsyncUtils.fetchAsync(() -> identityClient.getUserById(p.getUserId()))
+                            : CompletableFuture.completedFuture(null);
+                        
+                        CompletableFuture<AddressResponse> addressFuture = (p.getAddressId() != null)
+                            ? AsyncUtils.fetchAsync(() -> identityClient.getAddressById(p.getAddressId()))
+                            : CompletableFuture.completedFuture(null);
+                        
+                        try {
+                            CompletableFuture.allOf(userFuture, addressFuture).join();
+                        } catch (CompletionException e) {
+                            if (e.getCause() instanceof ServiceException serviceException) {
+                                throw serviceException;
+                            }
+                            throw e;
+                        }
+                        
+                        UserResponse user = userFuture.join();
+                        AddressResponse address = addressFuture.join();
 
-            // Scatter-Gather Pattern (Mô hình Phân tán - Thu thập)
-            // 1. Xử lý User Future: Kiểm tra userId trước khi gọi
-            CompletableFuture<UserResponse> userFuture = (shopManagement.getUserId() != null)
-                ? AsyncUtils.fetchAsync(() -> identityClient.getUserById(shopManagement.getUserId()))
-                : CompletableFuture.completedFuture(null);
-            
-            CompletableFuture<AddressResponse> addressFuture = (shopManagement.getAddressId() != null)
-                ? AsyncUtils.fetchAsync(() -> identityClient.getAddressById(shopManagement.getAddressId()))
-                : CompletableFuture.completedFuture(null);
-            
-            try {
-                CompletableFuture.allOf(userFuture, addressFuture).join();
-            } catch (CompletionException e) {
-                if (e.getCause() instanceof ServiceException serviceException) {
-                    throw serviceException;
-                }
-                throw e;
-            }
-            
-            UserResponse user = userFuture.join();
-            AddressResponse address = addressFuture.join();
+                        ShopManagementResponse shopManagementResponse = shopManagementMapper.toDto(p);
+                        shopManagementResponse.setVersion(System.currentTimeMillis());
 
-            ShopManagementResponse response = shopManagementMapper.toDto(shopManagement);
 
-            // Map User nếu kết quả trả về không null
-            if (user != null) {
-                response.setUser(InnerUserResponse.builder()
-                    .id(user.getId()).fullName(user.getFullName())
-                    .email(user.getEmail()).phoneNumber(user.getPhoneNumber())
-                    .avatar(user.getAvatar()).build());
-            }
+                        // Map User nếu kết quả trả về không null
+                        if (user != null) {
+                            shopManagementResponse.setUser(InnerUserResponse.builder()
+                                .id(user.getId()).fullName(user.getFullName())
+                                .email(user.getEmail()).phoneNumber(user.getPhoneNumber())
+                                .avatar(user.getAvatar()).build());
+                        }
 
-            // Map Address nếu kết quả trả về không null
-            if (address != null) {
-                response.setAddress(InnerAddressResponse.builder()
-                    .id(address.getId()).address(address.getAddress())
-                    .district(address.getDistrict()).province(address.getProvince())
-                    .ward(address.getWard()).build());
-            }
+                        // Map Address nếu kết quả trả về không null
+                        if (address != null) {
+                            shopManagementResponse.setAddress(InnerAddressResponse.builder()
+                                .id(address.getId()).address(address.getAddress())
+                                .district(address.getDistrict()).province(address.getProvince())
+                                .ward(address.getWard()).build());
+                        }
+                        return shopManagementResponse;
+                    }).orElseGet(null)
+                );
 
-            return response;
 
         } catch (ServiceException e) {
             throw e;
@@ -318,6 +338,16 @@ public class ShopManagementServiceImpl implements ShopManagementService{
 
     }
 
+    @Cacheable(value = "shopManagement", key = "#shopManagementId", unless = "#result == null")
+    public ShopManagement fetchShopManagement(UUID shopManagementId) {
+        return shopManagementRepository.findById(shopManagementId)
+            .orElseThrow(() -> new ServiceException(
+                EnumError.PRODUCT_SHOP_MANAGEMENT_ERR_NOT_FOUND_ID,
+                "shop.management.not.found.id",
+                Map.of("shopManagementId", shopManagementId)
+            ));
+    }
+
     private UserResponse getUserResponse(UUID id){
         try {
             ApiResponse<UserResponse> apiResponse = this.identityClient.getUserById(id);
@@ -356,4 +386,31 @@ public class ShopManagementServiceImpl implements ShopManagementService{
         }
 
     }
+    private String getCacheKey(UUID id){
+        return this.productServiceCacheProperties.createCacheKey(
+            this.productServiceCacheProperties.getKeys().getShopManagementInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(UUID id){
+        return this.productServiceCacheProperties.createLockKey(
+            this.productServiceCacheProperties.getKeys().getShopManagementInfo(),
+            id
+        );
+    }
+
+    private void updateShopManagementCache(ShopManagementResponse shopManagementResponse) {
+        try {
+            // Set current timestamp as version
+            shopManagementResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(shopManagementResponse.getId());
+            cacheProvider.put(cacheKey, shopManagementResponse);
+            
+            log.info("PRODUCT-SERVICE: Updated cache for shop management ID: {}", shopManagementResponse.getId());
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [updateShopManagementCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    } 
 }

@@ -22,7 +22,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ShopManagementResponse {
+public class ShopManagementResponse extends VersionResponse{
     UUID id;
     String slug;
     String name; // Tên gian hàng

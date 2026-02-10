@@ -19,7 +19,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ApprovalHistoryResponse {
+public class ApprovalHistoryResponse extends VersionResponse{
     Long id;
     LocalDateTime approvedAt;
     UUID requestId; 

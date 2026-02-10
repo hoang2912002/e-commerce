@@ -11,9 +11,10 @@ import com.fashion.product.entity.Category;
 public interface CategoryService {
     CategoryResponse createCategory(Category category);
     CategoryResponse updateCategory(Category category);
-    CategoryResponse getCategoryById(UUID id);
+    CategoryResponse getCategoryById(UUID id, Long version);
     PaginationResponse<List<CategoryResponse>> getAllCategory(SearchRequest request);
     Category findRawCategoryById(UUID id);
     List<Category> getCategoryTreeStartByListId(List<UUID> ids);
     boolean isLeaf(Category category);
+    Category fetchAndValidateCategory(UUID id);
 }

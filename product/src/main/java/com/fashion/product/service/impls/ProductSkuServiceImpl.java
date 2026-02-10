@@ -46,7 +46,7 @@ public class ProductSkuServiceImpl implements ProductSkuService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    // @Transactional(rollbackFor = ServiceException.class)
     public void validateAndMapSkuToInventoryRequests(Product product) {
         try {
             this.productSkuRepository.lockSkuByProduct(product.getId());

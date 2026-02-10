@@ -24,4 +24,8 @@ public interface CategoryRepository extends JpaRepository<Category, UUID>, JpaSp
     @EntityGraph(attributePaths = "children")
     @Query("SELECT DISTINCT c FROM Category c WHERE c.id IN :ids")
     List<Category> findAllByIdWithChildren(@Param("ids") List<UUID> ids);
+
+    @EntityGraph(attributePaths = {"children"})
+    @Query("SELECT c FROM Category c WHERE c.id =:id")
+    Optional<Category> findByIdWithChildren(UUID id);
 }

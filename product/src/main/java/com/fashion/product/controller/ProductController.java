@@ -27,6 +27,7 @@ import com.fashion.product.entity.Product;
 import com.fashion.product.mapper.ProductMapper;
 import com.fashion.product.service.ProductService;
 
+import feign.Param;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -59,9 +60,10 @@ public class ProductController {
     @GetMapping("/{id}")
     @ApiMessageResponse("product.success.get.single")
     public ResponseEntity<ProductResponse> getProductById(
-        @PathVariable("id") UUID id
+        @PathVariable("id") UUID id,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.ok(this.productService.getProductById(id));
+        return ResponseEntity.ok(this.productService.getProductById(id, version));
     }
 
     @GetMapping("")
@@ -98,7 +100,7 @@ public class ProductController {
     public ResponseEntity<ProductResponse> getInternalProductById(
         @RequestParam UUID productId
     ) {
-        return ResponseEntity.ok(this.productService.getProductById(productId));
+        return ResponseEntity.ok(this.productService.getProductById(productId, null));
     }
 
     @InternalEndpoint

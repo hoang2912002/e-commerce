@@ -6,11 +6,15 @@ import java.rmi.ServerException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -259,7 +263,39 @@ public class PromotionServiceImpl implements PromotionService{
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         } 
     }
-    
+
+    @Override
+    public Map<UUID, InnerPromotionResponse> getBestPromotionsByProductIds(Collection<ProductSku> productSkus, UUID pId) {
+        if (pId == null) return Collections.emptyMap();
+        try {
+            List<PromotionProduct> promotionProducts = promotionProductRepository.findAllByProductId(pId);
+            if(promotionProducts.size() <= 0) return new HashMap<>(); 
+            return productSkus.stream().collect(Collectors.toMap(
+                ProductSku::getId,
+                sku -> findBestPromotion(sku, promotionProducts),
+                (a, b) -> a
+            ));
+        } catch (Exception e) {
+            log.error("Error: {}", e.getMessage());
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    private InnerPromotionResponse findBestPromotion(ProductSku sku, List<PromotionProduct> promotions) {
+        InnerPromotionResponse best = null;
+        BigDecimal maxDiscount = BigDecimal.ZERO;
+
+        for (PromotionProduct item : promotions) {
+            BigDecimal discount = calculateDiscountValue(item.getPromotion(), sku.getPrice());
+            if (discount.compareTo(maxDiscount) > 0) {
+                maxDiscount = discount;
+                best = promotionMapper.toInnerEntity(item.getPromotion());
+                best.setDiscountFinal(maxDiscount);
+            }
+        }
+        return best;
+    }
+
     private PromotionResponse upSertPromotion(
         Promotion promotion, 
         PromotionRequest promotionRequest,

@@ -12,6 +12,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.common.Uuid;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -29,11 +30,14 @@ import com.fashion.product.dto.request.search.SearchOption;
 import com.fashion.product.dto.request.search.SearchRequest;
 import com.fashion.product.dto.response.CategoryResponse;
 import com.fashion.product.dto.response.PaginationResponse;
+import com.fashion.product.dto.response.ProductResponse;
 import com.fashion.product.entity.Category;
 import com.fashion.product.exception.ServiceException;
 import com.fashion.product.mapper.CategoryMapper;
+import com.fashion.product.properties.cache.ProductServiceCacheProperties;
 import com.fashion.product.repository.CategoryRepository;
 import com.fashion.product.service.CategoryService;
+import com.fashion.product.service.provider.CacheProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -47,13 +51,17 @@ import lombok.extern.slf4j.Slf4j;
 public class CategoryServiceImpl implements CategoryService{
     CategoryRepository categoryRepository;
     CategoryMapper categoryMapper;
+    CacheProvider cacheProvider;
+    ProductServiceCacheProperties productServiceCacheProperties;
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public CategoryResponse createCategory(Category category) {
         log.info("[createCategory] start create category ....");
         try {
-            return upSertCategory(category,null, categoryMapper::toDto);
+            CategoryResponse categoryResponse = upSertCategory(category,null, categoryMapper::toDto);
+            this.updateCategoryCache(categoryResponse);
+            return categoryResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -63,11 +71,13 @@ public class CategoryServiceImpl implements CategoryService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public CategoryResponse updateCategory(Category category){
         log.info("[updateCategory] start update category ....");
         try {
-            return upSertCategory(category,category.getId(), categoryMapper::toDto);
+            CategoryResponse categoryResponse = upSertCategory(category,category.getId(), categoryMapper::toDto);
+            this.updateCategoryCache(categoryResponse);
+            return categoryResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -77,14 +87,23 @@ public class CategoryServiceImpl implements CategoryService{
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public CategoryResponse getCategoryById(UUID id){
+    @Transactional(readOnly = true, timeout = 30)
+    public CategoryResponse getCategoryById(UUID id, Long version){
         try {
-            Category category = findRawCategoryById(id);
-            if(category == null){
-                throw new ServiceException(EnumError.PRODUCT_CATEGORY_ERR_NOT_FOUND_ID, "category.not.found.id",Map.of("id", id));
+            if(version == null){
+                throw new ServiceException(EnumError.PRODUCT_VERSION_CACHE, "server.version.not.be.null");
             }
-            return categoryMapper.toDto(category);
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, CategoryResponse.class, () ->
+                this.categoryRepository.findById(id)
+                    .map(c -> {
+                        CategoryResponse categoryResponse = categoryMapper.toDto(c);
+                        categoryResponse.setVersion(System.currentTimeMillis());
+                        return categoryResponse;
+                    })
+                    .orElse(null)
+            );
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -94,7 +113,7 @@ public class CategoryServiceImpl implements CategoryService{
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, timeout = 30)
     public PaginationResponse<List<CategoryResponse>> getAllCategory(SearchRequest request) {
         try {
             SearchOption searchOption = request.getSearchOption();
@@ -129,7 +148,7 @@ public class CategoryServiceImpl implements CategoryService{
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, timeout = 30)
     public List<Category> getCategoryTreeStartByListId(List<UUID> ids){
         try {
             List<Category> allCategories = categoryRepository.findAll();
@@ -197,6 +216,26 @@ public class CategoryServiceImpl implements CategoryService{
         }
     }
 
+    @Cacheable(value = "category", key = "#categoryId", unless = "#result == null")
+    public Category fetchAndValidateCategory(UUID categoryId) {
+        return categoryRepository.findByIdWithChildren(categoryId)
+            .map(c -> {
+                if (!this.isLeaf(c)) {
+                    throw new ServiceException(
+                        EnumError.PRODUCT_CATEGORY_INVALID_ID,
+                        "product.category.invalid.id",
+                        Map.of("categoryId", c.getId())
+                    );
+                }
+                return c;
+            })
+            .orElseThrow(() -> new ServiceException(
+                EnumError.PRODUCT_CATEGORY_ERR_NOT_FOUND_ID,
+                "category.not.found.id",
+                Map.of("categoryId", categoryId)
+            ));
+    }
+
     private <T> T upSertCategory(
         Category category, 
         UUID checkId, 
@@ -240,4 +279,32 @@ public class CategoryServiceImpl implements CategoryService{
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
+
+    private String getCacheKey(UUID id){
+        return this.productServiceCacheProperties.createCacheKey(
+            this.productServiceCacheProperties.getKeys().getCategoryInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(UUID id){
+        return this.productServiceCacheProperties.createLockKey(
+            this.productServiceCacheProperties.getKeys().getCategoryInfo(),
+            id
+        );
+    }
+
+    private void updateCategoryCache(CategoryResponse categoryResponse) {
+        try {
+            // Set current timestamp as version
+            categoryResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(categoryResponse.getId());
+            cacheProvider.put(cacheKey, categoryResponse);
+            
+            log.info("PRODUCT-SERVICE: Updated cache for category ID: {}", categoryResponse.getId());
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [updateCategoryCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    } 
 }

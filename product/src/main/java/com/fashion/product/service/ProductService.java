@@ -15,7 +15,7 @@ public interface ProductService {
     ProductResponse createProduct(ProductRequest request);
     ProductResponse updateProduct(ProductRequest request);
     PaginationResponse<List<ProductResponse>> getAllProduct(SearchRequest request);
-    ProductResponse getProductById(UUID id);
+    ProductResponse getProductById(UUID id, Long version);
     List<Product> findListProductById(List<UUID> ids);
     void validateInternalProductById(UUID id, UUID skuId);
     List<ProductResponse> getInternalProductByIdAndCheckApproval(InnerInternalProductRequest request);

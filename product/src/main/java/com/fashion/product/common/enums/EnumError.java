@@ -88,6 +88,7 @@ public enum EnumError {
     PRODUCT_INTERNAL_ERROR_CALL_API("PRODUCT-INTERNAL-ERROR-CALL-API", "Call Identity Service api error", HttpStatus.INTERNAL_SERVER_ERROR),
     PRODUCT_VALIDATION_ERROR("PRODUCT-VALIDATION-ERROR","Validation error",HttpStatus.BAD_REQUEST),
     PRODUCT_INVALID_FORMAT_UUID("PRODUCT-INVALID-FORMAT-UUID", "Wrong ID data type format", HttpStatus.BAD_REQUEST),
+    PRODUCT_VERSION_CACHE("PRODUCT-VERSION-CACHE", "Request query must has version", HttpStatus.BAD_REQUEST),
 
     //----------------Kafka-------------------
     PRODUCT_KAFKA_REQUEST_TIME_OUT_WITH_BROKER("PRODUCT-KAFKA-REQUEST-TIME-OUT-WITH-BROKER","Can not connect to Kafka", HttpStatus.REQUEST_TIMEOUT),

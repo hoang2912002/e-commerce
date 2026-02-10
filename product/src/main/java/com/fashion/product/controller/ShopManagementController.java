@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.product.common.annotation.ApiMessageResponse;
@@ -57,9 +58,10 @@ public class ShopManagementController {
     @GetMapping("/{id}")
     @ApiMessageResponse("shop.management.success.get.single")
     public ResponseEntity<ShopManagementResponse> getShopManagementById(
-        @PathVariable("id") UUID id
+        @PathVariable("id") UUID id,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.ok(this.shopManagementService.getShopManagementById(id));
+        return ResponseEntity.ok(this.shopManagementService.getShopManagementById(id, version));
     }
 
     @GetMapping("")

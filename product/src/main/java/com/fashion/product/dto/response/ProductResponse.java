@@ -23,7 +23,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProductResponse {
+public class ProductResponse extends VersionResponse{
     UUID id;
     String name;
     String price;
@@ -36,7 +36,6 @@ public class ProductResponse {
     String updatedBy;
     Instant updatedAt;
     Boolean activated;
-
     InnerCategoryResponse category;
     InnerShopManagementResponse shopManagement;
     List<InnerProductSkuResponse> productSkus;

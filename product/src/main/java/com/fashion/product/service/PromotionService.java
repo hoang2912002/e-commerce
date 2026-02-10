@@ -1,7 +1,9 @@
 package com.fashion.product.service;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import com.fashion.product.dto.request.PromotionRequest;
@@ -20,4 +22,5 @@ public interface PromotionService {
     void spinningQuantity(Map<UUID, Integer> promotions, UUID eventId);
     Promotion lockPromotionById(UUID id);
     InnerPromotionResponse getInternalCorrespondingPromotionByProductId(ProductSku productSku);
+    Map<UUID, InnerPromotionResponse> getBestPromotionsByProductIds(Collection<ProductSku> productSkus,UUID productIds);
 }

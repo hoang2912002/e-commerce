@@ -13,7 +13,7 @@ import com.fashion.product.entity.ShopManagement;
 public interface ApprovalHistoryService {
     ApprovalHistoryResponse createApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType);
     ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType);
-    ApprovalHistoryResponse getApprovalHistoryById(Long id);
+    ApprovalHistoryResponse getApprovalHistoryById(Long id, Long version);
     PaginationResponse<List<ApprovalHistoryResponse>> getAllApprovalHistories(SearchRequest request);
     void deleteApprovalHistory(Long id);
     void handleApprovalHistoryUpSertProduct(
