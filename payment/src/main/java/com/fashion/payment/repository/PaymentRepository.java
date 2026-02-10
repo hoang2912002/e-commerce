@@ -11,12 +11,13 @@ import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 
 import com.fashion.payment.entity.Payment;
+import com.fashion.payment.entity.PaymentId;
 import com.fashion.payment.entity.PaymentMethod;
 
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 
-public interface PaymentRepository extends JpaRepository<Payment,UUID>, JpaSpecificationExecutor<Payment>{
+public interface PaymentRepository extends JpaRepository<Payment,PaymentId>, JpaSpecificationExecutor<Payment>{
     @Query("SELECT p FROM Payment p WHERE p.orderId = :orderId")
     Optional<Payment> findDuplicateForCreate(
         @Param("orderId") UUID orderId
