@@ -128,3 +128,12 @@ services:
       DYNAMIC_CONFIG_ENABLED: 'true'
     networks:
       - my-internal-net
+
+  #Redis
+  redis:
+    container_name: redis
+    image: redis:latest
+    ports:
+      - "6319:6379"
+    networks:
+      - my-internal-net
