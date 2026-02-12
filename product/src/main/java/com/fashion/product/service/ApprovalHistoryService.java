@@ -11,16 +11,18 @@ import com.fashion.product.entity.Product;
 import com.fashion.product.entity.ShopManagement;
 
 public interface ApprovalHistoryService {
-    ApprovalHistoryResponse createApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType);
-    ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType);
+    ApprovalHistoryResponse createApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType, Long version);
+    ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType, Long version);
     ApprovalHistoryResponse getApprovalHistoryById(Long id, Long version);
     PaginationResponse<List<ApprovalHistoryResponse>> getAllApprovalHistories(SearchRequest request);
     void deleteApprovalHistory(Long id);
     void handleApprovalHistoryUpSertProduct(
         Product product, boolean isCreate, // Đây là id để kiểm tra tạo mới hay cập nhật
-        String entityType
+        String entityType,
+        Long version
     );
-    boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval);
+    boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval, Long version);
     void checkApprovalHistoryForUpSertOrder(List<Product> products);
     void validateInternalApprovalHistoryByRequestId(UUID requestId);
+    void failedSagaRejectProduct(UUID requestId, UUID eventId);
 }

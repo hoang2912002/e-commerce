@@ -42,7 +42,13 @@ public interface ApprovalHistoryRepository extends JpaRepository<ApprovalHistory
         @Param("requestId") UUID requestId
     );
 
+    boolean existsByEventIdAndRequestId(UUID eventId, UUID requestId);
+
     
     Optional<ApprovalHistory> findFirstByRequestIdAndApprovalMasterIdInOrderByApprovedAtDesc(UUID requestId, List<UUID> approvalMasterIds);
+    Optional<ApprovalHistory> findTopByApprovalMasterIdOrderByApprovedAtDesc(UUID approvalMasterId);
+
+    @Transactional
+    @EntityGraph(attributePaths = "approvalMaster")
     Optional<ApprovalHistory> findFirstByRequestIdOrderByApprovedAtDesc(UUID requestId);
 }

@@ -60,13 +60,13 @@ public class ProductSkuServiceImpl implements ProductSkuService{
                         .quantityAvailable(sku.getTempStock())
                         .build());
                     
-                    sku.setTempStock(0); // Reset ngay sau khi lấy giá trị
+                    // sku.setTempStock(0);
                 }
                 
             }
 
             if (!eventPayload.isEmpty()) {
-                // this.productServiceProvider.produceProductApprovedEventSuccess(inventories);
+                // Publish internal event (will be sent to Kafka after commit)
                 applicationEventPublisher.publishEvent(new InternalProductApprovedEvent(this, eventPayload));
             }
         } catch (ServiceException e) {
@@ -87,6 +87,19 @@ public class ProductSkuServiceImpl implements ProductSkuService{
             throw e;
         } catch (Exception e) {
             log.error("PRODUCT-SERVICE: [getInternalProductSkuByIds] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public void completeSagaResetTempStock(List<UUID> ids) {
+        try {
+            this.productSkuRepository.updateTempStockToZero(ids);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [completeSagaResetTempStock] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }

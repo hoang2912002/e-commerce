@@ -19,4 +19,5 @@ public class EventMetaData {
    String eventType;    // PERMISSION_REGISTER, ORDER_PAID...
    String source;       // resource-service
    int version;         // version của event schema
+   // String correlationId; // ✅ For saga tracking
 }

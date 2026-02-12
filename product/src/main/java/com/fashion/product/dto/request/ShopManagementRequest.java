@@ -57,6 +57,9 @@ public class ShopManagementRequest {
 
     @NotBlank(message = "shop.management.bankBranch.notNull", groups = {Create.class, Update.class})
     String bankBranch;
+
+    @NotNull(message = "server.version.not.be.null", groups = {Create.class, Update.class})
+    Long version;
     // String logo;
     // String thumbnail;
     // String businessLicence;

@@ -93,7 +93,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     public final static String ENTITY_TYPE_SHOP_MANAGEMENT = "SHOP_MANAGEMENT";
     @Override
     @Transactional(rollbackFor = ServiceException.class, timeout = 30)
-    public ApprovalHistoryResponse createApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType) {
+    public ApprovalHistoryResponse createApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType, Long version) {
         log.info("PRODUCT-SERVICE: [createApprovalHistory] Start create approval history");
         try {
             UserInsideToken user = SecurityUtils.getCurrentUserId().orElseThrow(
@@ -102,7 +102,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             // UserResponse userRes = identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData();
             // ApprovalMaster approvalMaster = getApprovalMaster(approvalHistory, entityType);
             CompletableFuture<UserResponse> userFuture = AsyncUtils.fetchAsyncWThread(
-                () -> this.identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData(),
+                () -> this.identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId()), version).getData(),
                 virtualExecutor
             );
 
@@ -136,6 +136,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             approvalHistory.setApprovedAt(approvedAt);
             approvalHistory.setApprovalMaster(approvalMaster);
             approvalHistory.setActivated(true);
+            approvalHistory.setEventId(UUID.randomUUID());
             ApprovalHistory saved = approvalHistoryRepository.save(approvalHistory);
 
             if(validatedEntity instanceof Product product && approvalMaster.getStatus().equals(ApprovalMasterEnum.APPROVED)
@@ -156,7 +157,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
 
     @Override
     @Transactional(rollbackFor = ServiceException.class, timeout = 30)
-    public ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType) {
+    public ApprovalHistoryResponse updateApprovalHistory(ApprovalHistory approvalHistory, boolean skipCheckPeriodDataExist, String entityType, Long version) {
         log.info("PRODUCT-SERVICE: [updateApprovalHistory] Start update approval history");
         try {
             UserInsideToken user = SecurityUtils.getCurrentUserId().orElseThrow(
@@ -173,7 +174,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             //     )
             // );
             CompletableFuture<UserResponse> userFuture = AsyncUtils.fetchAsyncWThread(
-                () -> this.identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId())).getData(),
+                () -> this.identityClient.getUserById(ConvertUuidUtil.toUuid(user.getId()), version).getData(),
                 virtualExecutor
             );
 
@@ -182,9 +183,13 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             
             CompletableFuture<Optional<ApprovalHistory>> approvalHistoryFuture = AsyncUtils.fetchAsyncWThread(
                 () -> this.approvalHistoryRepository.lockApprovalHistoryById(approvalHistory.getId()), virtualExecutor);
-            
+            CompletableFuture<Optional<Long>> lastHistoryIdFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.approvalHistoryRepository.findTopByApprovalMasterIdOrderByApprovedAtDesc(approvalHistory.getApprovalMaster().getId())
+                    .map(ApprovalHistory::getId), 
+                virtualExecutor
+            );
             try {
-                CompletableFuture.allOf(userFuture, approvalMasterFuture, approvalHistoryFuture).join();
+                CompletableFuture.allOf(userFuture, approvalMasterFuture, approvalHistoryFuture, lastHistoryIdFuture).join();
             } catch (CompletionException e) {
                 if (e.getCause() instanceof ServiceException serviceException) {
                     throw serviceException;
@@ -194,6 +199,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             UserResponse userRes = userFuture.join();
             ApprovalMaster approvalMaster = approvalMasterFuture.join();
             Optional<ApprovalHistory> approvalHistoryOpt = approvalHistoryFuture.join();
+            Long lastIdInDb = lastHistoryIdFuture.join().orElse(null);
             if(!approvalHistoryOpt.isPresent()){
                 throw new ServiceException(EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_ID,"approval.history.not.found.id",Map.of("id", approvalHistory.getId()));
             }
@@ -213,7 +219,12 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             approvalHistory.setActivated(true);
             ApprovalHistory saved = approvalHistoryRepository.save(approvalHistory);
             ApprovalHistoryResponse approvalHistoryResponse = approvalHistoryMapper.toDto(saved);
-            this.updateApprovalHistoryCache(approvalHistoryResponse);
+            if (lastIdInDb == null || saved.getId().equals(lastIdInDb)) {
+                this.updateApprovalHistoryCache(approvalHistoryResponse);
+                log.info("PRODUCT-SERVICE: Cache updated for the latest history ID: {}", saved.getId());
+            } else {
+                log.warn("PRODUCT-SERVICE: Skip cache update. History ID {} is not the latest.", saved.getId());
+            }
             return approvalHistoryResponse;
         } catch (ServiceException e) {
             throw e;
@@ -285,7 +296,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
 
     @Override
     @Transactional(rollbackFor = ServiceException.class, timeout = 30)
-    public void handleApprovalHistoryUpSertProduct(Product product, boolean isCreate, String entityType) {
+    public void handleApprovalHistoryUpSertProduct(Product product, boolean isCreate, String entityType, Long version) {
         try {
             Map<ApprovalMasterEnum, ApprovalMaster> masterMap = this.getApprovalMasterMap(entityType);
 
@@ -295,7 +306,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                         masterMap.values().stream().map(ApprovalMaster::getId).toList());
             
             // 3. Xử lý logic dựa trên trạng thái (State-driven logic)
-            this.processApprovalState(product, isCreate, lastHistoryOpt, masterMap, entityType);
+            this.processApprovalState(product, isCreate, lastHistoryOpt, masterMap, entityType, version);
 
         } catch (ServiceException e) {
             throw e;
@@ -306,7 +317,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     }
 
     @Override
-    public boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval) {
+    public boolean checkApprovalHistoryForUpShop(ShopManagement shopManagement, boolean skipCreateNextApproval, Long version) {
         try {
             Map<ApprovalMasterEnum, ApprovalMaster> masterMap = this.getApprovalMasterMap(ENTITY_TYPE_SHOP_MANAGEMENT);
             
@@ -318,7 +329,8 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
             return this.checkShopManagementUpdatable(
                 lastHistoryOpt, 
                 shopManagement,
-                nextMaster
+                nextMaster,
+                version
             );
         } catch (ServiceException e) {
             throw e;
@@ -376,6 +388,60 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
         }
     }
     
+    @Override
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
+    public void failedSagaRejectProduct(UUID requestId, UUID eventId){
+        try {
+            if (requestId == null) return;
+            if(this.approvalHistoryRepository.existsByEventIdAndRequestId(eventId,requestId)){
+                log.warn("PRODUCT-SERVICE: [failedSagaRejectProduct] Skip duplicated create approval history from Saga eventId={}, productId={}", requestId, eventId);
+                return;
+            }
+            CompletableFuture<Optional<ApprovalHistory>> approvalHistoryFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.approvalHistoryRepository.findFirstByRequestIdOrderByApprovedAtDesc(requestId), virtualExecutor);
+
+            CompletableFuture<Optional<ApprovalMaster>> approvalMasterFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.approvalMasterRepository.findByEntityTypeAndStatus(ENTITY_TYPE_PRODUCT, ApprovalMasterEnum.REJECTED), virtualExecutor);
+            
+            try {
+                CompletableFuture.allOf(approvalMasterFuture, approvalHistoryFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
+
+            ApprovalHistory approvalHistory = approvalHistoryFuture.join().orElseThrow(
+                () -> new ServiceException(EnumError.PRODUCT_APPROVAL_HISTORY_ERR_NOT_FOUND_LAST_PRODUCT,"approval.history.not.found.requestId", Map.of("productId", requestId))
+            );
+            ApprovalMaster approvalMaster = approvalMasterFuture.join().orElseThrow(
+                () -> new ServiceException(EnumError.PRODUCT_APPROVAL_MASTER_ERR_NOT_FOUND_ENTITY_TYPE_STATUS,"approval.master.not.found.entityType.status", Map.of("productId", requestId))
+            );
+            ApprovalHistory saveHistory = new ApprovalHistory();
+                        
+            approvalHistory.getApprovalMaster().getStatus().validateAbilityUpsertInventory(historyInventoryErrorProvider,Map.of("productId", requestId));
+
+            // Save Reject status approval.
+            LocalDateTime approvedAt = LocalDateTime.now();
+            saveHistory.setNote(String.format("Create %s - create existing approval request with status %s at: %s",
+                ENTITY_TYPE_PRODUCT.toLowerCase(),
+                approvalMaster.getStatus().toString(),
+                FormatTime.StringDateLocalDateTime(approvedAt)
+            ));
+            saveHistory.setApprovedAt(approvedAt);
+            saveHistory.setApprovalMaster(approvalMaster);
+            saveHistory.setActivated(true);          
+            saveHistory.setRequestId(requestId);
+            saveHistory.setEventId(eventId);  
+            this.approvalHistoryRepository.save(saveHistory);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [failedSagaRejectProduct] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
 
     private ApprovalMaster getApprovalMaster(ApprovalHistory approvalHistory, String entityType) {
         try {
@@ -573,7 +639,8 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
     private void processApprovalState(Product product, boolean isCreate, 
         Optional<ApprovalHistory> lastHistoryOpt, 
         Map<ApprovalMasterEnum, ApprovalMaster> masterMap,
-        String entityType
+        String entityType,
+        Long version
     ) {
         try {
             Map<String, Object> errorParams = Map.of("name", product.getName());
@@ -592,7 +659,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
 
                 this.createApprovalHistory(
                     buildHistory(null, pendingMaster, product.getId(), "Create new approval request"), 
-                    true, entityType);
+                    true, entityType, version);
                 return; 
             }
 
@@ -609,12 +676,12 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
 
                     this.updateApprovalHistory(
                         buildHistory(lastHistory.getId(), nextMaster, product.getId(), "Update existing approval request"), 
-                        true, entityType);
+                        true, entityType, version);
                 },
                 () -> {
                     this.createApprovalHistory(
                         buildHistory(null, pendingMaster, product.getId(), "Re-create missing approval request"), 
-                        true, entityType);
+                        true, entityType, version);
                 }
             );   
         } catch (ServiceException e) {
@@ -647,7 +714,7 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
         }).orElseGet(() -> masterMap.get(ApprovalMasterEnum.PENDING));
     }
 
-    private boolean checkShopManagementUpdatable(Optional<ApprovalHistory> lastHistoryOpt, ShopManagement shop, ApprovalMaster nextMaster) {
+    private boolean checkShopManagementUpdatable(Optional<ApprovalHistory> lastHistoryOpt, ShopManagement shop, ApprovalMaster nextMaster, Long version) {
         try {
             Map<String, Object> errorParams = Map.of("name", shop.getName());
             return lastHistoryOpt.map(lastHistory -> {
@@ -660,7 +727,8 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                     this.createApprovalHistory(
                         this.buildHistory(null,nextMaster,shop.getId(),"Re-create missing approval request"),
                         true,
-                        ENTITY_TYPE_SHOP_MANAGEMENT
+                        ENTITY_TYPE_SHOP_MANAGEMENT,
+                        version
                     );
                 }
                 return true;
@@ -669,7 +737,8 @@ public class ApprovalHistoryServiceImpl implements ApprovalHistoryService{
                     ApprovalHistoryResponse create = this.createApprovalHistory(
                         this.buildHistory(null,nextMaster,shop.getId(),"Re-create missing approval request"),
                         true,
-                        ENTITY_TYPE_SHOP_MANAGEMENT
+                        ENTITY_TYPE_SHOP_MANAGEMENT,
+                        version
                     );
                     return create != null;
                 }

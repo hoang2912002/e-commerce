@@ -10,4 +10,5 @@ public interface ProductSkuService {
     void deleteProductSkuByListId(List<Long> ids);
     void validateAndMapSkuToInventoryRequests(Product product);
     List<ProductSkuResponse> getInternalProductSkuByIds(List<UUID> ids);
+    void completeSagaResetTempStock(List<UUID> ids);
 }

@@ -28,14 +28,18 @@ public class ProductRequest {
     public interface Create{};
     public interface Update{};
 
-    @NotNull(message = "", groups = {Update.class})
+    @NotNull(message = "product.id.notNull", groups = {Update.class})
     UUID id;
 
-    @NotBlank(message = "", groups = {Create.class, Update.class})
+    @NotBlank(message = "product.name.notNull", groups = {Create.class, Update.class})
     String name;
     
-    @NotNull(message = "", groups = {Create.class, Update.class})
+    @NotNull(message = "product.price.notNull", groups = {Create.class, Update.class})
     BigDecimal price;
+
+    @NotNull(message = "server.version.not.be.null", groups = {Create.class, Update.class})
+    Long version;
+    
     String thumbnail;
 
     Integer quantity;

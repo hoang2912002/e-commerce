@@ -60,12 +60,14 @@ public class ProductServiceProviderImpl implements ProductServiceProvider{
     public void produceProductApprovedEventSuccess(InternalProductApprovedEvent event) {
         var topic = kafkaTopicApprovalHistoryProperties.getApprovalHistoryApprovedProductSuccess();
         log.info("PRODUCT-SERVICE: produceProductApprovedEventSuccess(): approval history approved successful for product to send event create inventory topic {}", topic);
+        
         KafkaEvent<List<ProductApprovedEvent>> message = KafkaEvent.<List<ProductApprovedEvent>>builder()
             .metadata(EventMetaData.builder()
                 .eventId(UUID.randomUUID())
                 .eventType(EventType.APPROVAL_HISTORY_APPROVED.name())
                 .source("product-service")
                 .version(1)
+                // .correlationId(UUID.randomUUID().toString())
                 .build())
             .payload(event.getInventoriesData())
             .build();

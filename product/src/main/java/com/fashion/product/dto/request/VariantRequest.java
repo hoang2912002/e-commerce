@@ -32,7 +32,7 @@ public class VariantRequest {
     Instant createdAt;
     String updatedBy;
     Instant updatedAt;
-    boolean activated;
+    Boolean activated;
     InnerOptionRequest option;
     InnerOptionValueRequest optionValue;
     InnerProductRequest product;

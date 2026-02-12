@@ -66,6 +66,9 @@ spring:
       properties:
         # cho phép deserialize class custom
         spring.json.trusted.packages: "*"
+    listener:
+      missing-topics-fatal: false
+      ack-mode: manual_immediate
     # config producer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -92,6 +95,9 @@ spring:
       product:
         shop-management-created-success: com.product.shop.management.created.success
         approval-history-approved-product-success: com.identity.approval.history.approved.success # Phê duyệt sản phẩm thành công
+      inventory:
+        inventory-created-success: com.inventory.inventory.created.success
+        inventory-creation-failed: com.inventory.inventory.creation.failed
       order:
         order-created-success: com.order.order.created.success
 jwt:

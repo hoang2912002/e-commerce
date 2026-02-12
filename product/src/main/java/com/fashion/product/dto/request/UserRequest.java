@@ -35,7 +35,7 @@ public class UserRequest {
     Integer age;
     InnerRoleRequest role;
     List<InnerAddressRequest> addresses;
-    boolean activated;
+    Boolean activated;
     Instant createdAt;
     Instant updatedAt;
     String createdBy;

@@ -56,6 +56,9 @@ public class ApprovalHistory extends AbstractAuditingEntity<Long>{
     @Column(name = "approved_at")
     LocalDateTime approvedAt;
 
+    @Column(name = "event_id", nullable = false)
+    UUID eventId;
+
     @Column(name = "activated")
     Boolean activated;
 

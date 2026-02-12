@@ -40,6 +40,9 @@ public class ApprovalMasterRequest {
     @Enumerated(EnumType.STRING)
     ApprovalMasterEnum status;
 
+    @NotNull(message = "server.version.not.be.null", groups = {Create.class, Update.class})
+    Long version;
+
     Boolean required;
 
     @Valid

@@ -48,7 +48,8 @@ public class ApprovalHistoryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(this.approvalHistoryService.createApprovalHistory(
             approvalHistoryMapper.toValidated(approvalHistoryRequest), 
             false, 
-            approvalHistoryRequest.getEntityType()
+            approvalHistoryRequest.getEntityType(),
+            approvalHistoryRequest.getVersion()
         ));
     }
     
@@ -60,7 +61,8 @@ public class ApprovalHistoryController {
         return ResponseEntity.status(HttpStatus.OK).body(this.approvalHistoryService.updateApprovalHistory(
             approvalHistoryMapper.toValidated(approvalHistoryRequest), 
             false, 
-            approvalHistoryRequest.getEntityType()
+            approvalHistoryRequest.getEntityType(),
+            approvalHistoryRequest.getVersion()
         ));
     }
 

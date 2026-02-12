@@ -105,7 +105,7 @@ public class ProductServiceImpl implements ProductService{
         log.info("PRODUCT-SERVICE: [createProduct] Start create product");
         try {
             Product product = this.productMapper.toValidated(request);
-            ProductResponse productResponse = upSertProductOptimized(product,request.getVariants(),request.getCategory().getId(),request.getShopManagement().getId());
+            ProductResponse productResponse = upSertProductOptimized(product,request.getVariants(),request.getCategory().getId(),request.getShopManagement().getId(), request.getVersion());
             this.updateProductCache(productResponse);
             return productResponse;
         } catch (ServiceException e) {
@@ -154,7 +154,8 @@ public class ProductServiceImpl implements ProductService{
                 product, 
                 request.getVariants(), 
                 request.getCategory().getId(), 
-                request.getShopManagement().getId()
+                request.getShopManagement().getId(),
+                request.getVersion()
             );
             this.updateProductCache(productResponse);
             return productResponse;
@@ -417,7 +418,7 @@ public class ProductServiceImpl implements ProductService{
             if (!variantEntities.isEmpty()) {
                 this.variantRepository.saveAll(variantEntities);
             }   
-            this.approvalHistoryService.handleApprovalHistoryUpSertProduct(createdProduct,isCreate,ApprovalHistoryServiceImpl.ENTITY_TYPE_PRODUCT);
+            this.approvalHistoryService.handleApprovalHistoryUpSertProduct(createdProduct,isCreate,ApprovalHistoryServiceImpl.ENTITY_TYPE_PRODUCT, null);
             return productMapper.toDto(createdProduct);
         } catch (ServiceException e) {
             throw e;
@@ -456,7 +457,8 @@ public class ProductServiceImpl implements ProductService{
         Product product, 
         List<InnerVariantRequest> variants, 
         UUID categoryId, 
-        UUID shopManagementId
+        UUID shopManagementId,
+        Long version
     ) {
         try {
             final String slug = SlugUtil.toSlug(product.getName());
@@ -509,7 +511,7 @@ public class ProductServiceImpl implements ProductService{
                 //     virtualExecutor
                 // );
                 approvalHistoryService.handleApprovalHistoryUpSertProduct(
-                    savedProduct, isCreate, ApprovalHistoryServiceImpl.ENTITY_TYPE_PRODUCT
+                    savedProduct, isCreate, ApprovalHistoryServiceImpl.ENTITY_TYPE_PRODUCT, version
                 );
                 return this.productMapper.toDto(savedProduct);
             }
@@ -517,7 +519,7 @@ public class ProductServiceImpl implements ProductService{
             List<InnerProductSkuResponse> productSkuResponses = processVariantsOptimized(savedProduct, variants, isCreate, virtualExecutor);
 
             approvalHistoryService.handleApprovalHistoryUpSertProduct(
-                savedProduct, isCreate, ApprovalHistoryServiceImpl.ENTITY_TYPE_PRODUCT
+                savedProduct, isCreate, ApprovalHistoryServiceImpl.ENTITY_TYPE_PRODUCT, version
             );
             ProductResponse productResponse = productMapper.toDto(savedProduct);
             productResponse.setProductSkus(productSkuResponses);
@@ -602,6 +604,7 @@ public class ProductServiceImpl implements ProductService{
                         .product(saveProduct)
                         .tempStock(v.getStock())
                         .activated(true)
+                        .eventId(UUID.randomUUID())
                         .build();
                     skusToSave.add(newSku);
                 } else {
@@ -611,6 +614,7 @@ public class ProductServiceImpl implements ProductService{
                     sku.setPrice(v.getPrice());
                     sku.setTempStock(tempStock);
                     sku.setActivated(true);
+                    sku.setEventId(UUID.randomUUID());
                     skusToSave.add(sku);
                 }
             }

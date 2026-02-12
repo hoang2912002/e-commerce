@@ -117,7 +117,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
         try {
             ShopManagement shopManagement = this.shopManagementMapper.toValidated(request);
 
-            UserResponse userResponse = this.getUserResponse(shopManagement.getUserId());
+            UserResponse userResponse = this.getUserResponse(shopManagement.getUserId(), request.getVersion());
             String slug = SlugUtil.toSlug(shopManagement.getName());
             this.checkShopManagementExistByName(shopManagement.getName(), null);
             shopManagement.setSlug(slug);
@@ -134,7 +134,8 @@ public class ShopManagementServiceImpl implements ShopManagementService{
                 .note("")
                 .build(), 
                 true, 
-                ApprovalHistoryServiceImpl.ENTITY_TYPE_SHOP_MANAGEMENT
+                ApprovalHistoryServiceImpl.ENTITY_TYPE_SHOP_MANAGEMENT,
+                request.getVersion()
             ); 
             // Send kafka 
             ShopManagementAddressEvent addressEvent = ShopManagementAddressEvent.builder()
@@ -172,7 +173,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
                 EnumError.PRODUCT_SHOP_MANAGEMENT_ERR_NOT_FOUND_ID,
                 "shop.management.not.found.id");
             }
-            UserResponse userResponse = this.getUserResponse(shopManagement.getUserId());
+            UserResponse userResponse = this.getUserResponse(shopManagement.getUserId(), request.getVersion());
             String slug = SlugUtil.toSlug(shopManagement.getName());
             this.checkShopManagementExistByName(shopManagement.getName(), shopManagement.getId());
 
@@ -183,7 +184,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
             
             if(isImportantChange){
                 // Check approval history
-                this.approvalHistoryService.checkApprovalHistoryForUpShop(upSM, false);
+                this.approvalHistoryService.checkApprovalHistoryForUpShop(upSM, false, request.getVersion());
                 this.shopManagementMapper.toUpdate(upSM, request);
             }
             else{
@@ -225,7 +226,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
                         // Scatter-Gather Pattern (Mô hình Phân tán - Thu thập)
                         // 1. Xử lý User Future: Kiểm tra userId trước khi gọi
                         CompletableFuture<UserResponse> userFuture = (p.getUserId() != null)
-                            ? AsyncUtils.fetchAsync(() -> identityClient.getUserById(p.getUserId()))
+                            ? AsyncUtils.fetchAsync(() -> identityClient.getUserById(p.getUserId(), version))
                             : CompletableFuture.completedFuture(null);
                         
                         CompletableFuture<AddressResponse> addressFuture = (p.getAddressId() != null)
@@ -264,7 +265,7 @@ public class ShopManagementServiceImpl implements ShopManagementService{
                                 .ward(address.getWard()).build());
                         }
                         return shopManagementResponse;
-                    }).orElseGet(null)
+                    }).orElse(null)
                 );
 
 
@@ -348,9 +349,9 @@ public class ShopManagementServiceImpl implements ShopManagementService{
             ));
     }
 
-    private UserResponse getUserResponse(UUID id){
+    private UserResponse getUserResponse(UUID id, Long version){
         try {
-            ApiResponse<UserResponse> apiResponse = this.identityClient.getUserById(id);
+            ApiResponse<UserResponse> apiResponse = this.identityClient.getUserById(id, version);
             UserResponse userResponse = apiResponse.getData();
             String userRole = userResponse.getRole().getSlug().toUpperCase();
             if(!userRole.equals(roleAmin) && !userRole.equals(roleSeller)){

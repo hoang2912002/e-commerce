@@ -60,6 +60,9 @@ public class ProductSku extends AbstractAuditingEntity<UUID>{
     @Column(name = "activated")
     Boolean activated;
 
+    @Column(name = "event_id", nullable = false)
+    UUID eventId;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id")
     Product product;

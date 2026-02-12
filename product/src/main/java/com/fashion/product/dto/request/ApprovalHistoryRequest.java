@@ -43,6 +43,9 @@ public class ApprovalHistoryRequest {
     @NotNull(message = "approval.master.entityType.notNull", groups = {Create.class, Update.class})
     String entityType;
 
+    @NotNull(message = "server.version.not.be.null", groups = {Create.class, Update.class})
+    Long version;
+
     @Builder
     @NoArgsConstructor
     @Data

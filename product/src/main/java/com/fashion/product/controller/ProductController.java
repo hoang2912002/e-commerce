@@ -98,9 +98,10 @@ public class ProductController {
     @GetMapping("/internal/get-internal-product-by-id")
     @ApiMessageResponse("product.success.internal.get.single")
     public ResponseEntity<ProductResponse> getInternalProductById(
-        @RequestParam UUID productId
+        @RequestParam UUID productId,
+        @RequestParam Long version
     ) {
-        return ResponseEntity.ok(this.productService.getProductById(productId, null));
+        return ResponseEntity.ok(this.productService.getProductById(productId, version));
     }
 
     @InternalEndpoint

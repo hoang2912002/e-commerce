@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.product.common.enums.ApprovalMasterEnum;
 import com.fashion.product.entity.ApprovalMaster;
@@ -17,6 +19,7 @@ import com.fashion.product.entity.ApprovalMaster;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 
+@Repository
 public interface ApprovalMasterRepository extends JpaRepository<ApprovalMaster, UUID>, JpaSpecificationExecutor<ApprovalMaster> {
     @Query("SELECT a FROM ApprovalMaster a WHERE " +
        "a.entityType = :entityType AND " +
@@ -48,4 +51,7 @@ public interface ApprovalMasterRepository extends JpaRepository<ApprovalMaster, 
     ApprovalMaster lockApprovalMasterById(@Param("id") UUID id);
 
     List<ApprovalMaster> findAllByEntityType(String entityType);
+
+    @Transactional
+    Optional<ApprovalMaster> findByEntityTypeAndStatus(String entityType, ApprovalMasterEnum aEnum);
 }

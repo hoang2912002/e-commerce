@@ -34,7 +34,7 @@ public class UserResponse {
     boolean emailVerified;
     String verificationCode;
     LocalDateTime verificationExpiration; 
-    boolean activated;
+    Boolean activated;
     String createdBy;
     Instant createdAt;
     String updatedBy;

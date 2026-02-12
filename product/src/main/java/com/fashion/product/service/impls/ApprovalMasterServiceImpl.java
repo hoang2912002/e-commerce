@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -19,6 +20,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 
 import com.fashion.product.common.enums.ApprovalMasterEnum;
 import com.fashion.product.common.enums.EnumError;
+import com.fashion.product.common.response.ApiResponse;
 import com.fashion.product.common.util.AsyncUtils;
 import com.fashion.product.common.util.PageableUtils;
 import com.fashion.product.common.util.SpecificationUtils;
@@ -53,6 +55,7 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
     ApprovalMasterRepository approvalMasterRepository;
     ApprovalMasterMapper approvalMasterMapper;
     IdentityClient identityClient;
+    Executor virtualExecutor;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -60,7 +63,7 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
         log.info("PRODUCT-SERVICE: [createApprovalMaster] Start create approval master");
         try {
             ApprovalMaster approvalMaster = this.approvalMasterMapper.toValidated(request);
-            return this.saveOrUpdate(null, approvalMaster);
+            return this.saveOrUpdate(null, approvalMaster, request.getVersion());
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -70,13 +73,13 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, timeout = 30)
     public ApprovalMasterResponse updateApprovalMaster(ApprovalMasterRequest request) {
         log.info("PRODUCT-SERVICE: [updateApprovalMaster] Start update approval master");
         try {
             ApprovalMaster approvalMaster = this.approvalMasterMapper.toValidated(request);
             ApprovalMaster existingApprovalMaster = this.approvalMasterRepository.lockApprovalMasterById(approvalMaster.getId());
-            return this.saveOrUpdate(existingApprovalMaster, approvalMaster);
+            return this.saveOrUpdate(existingApprovalMaster, approvalMaster, request.getVersion());
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -87,7 +90,7 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
 
     @Override
     @Transactional(readOnly = true)
-    public ApprovalMasterResponse getApprovalMasterById(UUID id) {
+    public ApprovalMasterResponse getApprovalMasterById(UUID id, Long version) {
         try {
             ApprovalMaster approvalMaster = this.approvalMasterRepository.findById(id).orElseThrow(
                 () -> new ServiceException(
@@ -95,12 +98,12 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
                     "approval.master.not.found.id",
                     Map.of("id", id))
             );
-            CompletableFuture<RoleResponse> roleFuture = (approvalMaster.getRoleId() != null)
-                ? AsyncUtils.fetchAsync(() -> identityClient.getRoleById(approvalMaster.getRoleId()))
+            CompletableFuture<ApiResponse<RoleResponse>> roleFuture = (approvalMaster.getRoleId() != null)
+                ? AsyncUtils.fetchAsyncWThread(() -> identityClient.getRoleById(approvalMaster.getRoleId(), version), virtualExecutor)
                 : CompletableFuture.completedFuture(null);
 
-            CompletableFuture<UserResponse> userFuture = (approvalMaster.getUserId() != null)
-                ? AsyncUtils.fetchAsync(() -> identityClient.getUserById(approvalMaster.getUserId()))
+            CompletableFuture<ApiResponse<UserResponse>> userFuture = (approvalMaster.getUserId() != null)
+                ? AsyncUtils.fetchAsyncWThread(() -> identityClient.getUserById(approvalMaster.getUserId(), version), virtualExecutor)
                 : CompletableFuture.completedFuture(null);
 
             // Đợi cả 2 xong
@@ -113,8 +116,8 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
                 throw e;
             }
 
-            RoleResponse roleRes = roleFuture.join();
-            UserResponse userRes = userFuture.join();
+            RoleResponse roleRes = roleFuture.join().getData();
+            UserResponse userRes = userFuture.join().getData();
             ApprovalMasterResponse response = this.approvalMasterMapper.toDto(approvalMaster);
             response.setRole(
                 roleRes != null ?
@@ -195,7 +198,7 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
         }
     }
     
-    private ApprovalMasterResponse saveOrUpdate(ApprovalMaster existing, ApprovalMaster approvalMaster) {
+    private ApprovalMasterResponse saveOrUpdate(ApprovalMaster existing, ApprovalMaster approvalMaster, Long version) {
         try {
             checkApprovalMasterExist(approvalMaster, existing == null ? null : existing.getId());
 
@@ -207,19 +210,24 @@ public class ApprovalMasterServiceImpl implements ApprovalMasterService{
             entity.setRequired(approvalMaster.getRequired() == null ? false : approvalMaster.getRequired());
             entity.setActivated(true);
             
-            CompletableFuture<RoleResponse> roleFuture = (approvalMaster.getRoleId() != null)
-                ? AsyncUtils.fetchAsync(() -> identityClient.getRoleById(approvalMaster.getRoleId()))
+            CompletableFuture<ApiResponse<RoleResponse>> roleFuture = (approvalMaster.getRoleId() != null)
+                ? AsyncUtils.fetchAsyncWThread(() -> identityClient.getRoleById(approvalMaster.getRoleId(), version), virtualExecutor)
                 : CompletableFuture.completedFuture(null);
 
-            CompletableFuture<UserResponse> userFuture = (approvalMaster.getUserId() != null)
-                ? AsyncUtils.fetchAsync(() -> identityClient.getUserById(approvalMaster.getUserId()))
+            CompletableFuture<ApiResponse<UserResponse>> userFuture = (approvalMaster.getUserId() != null)
+                ? AsyncUtils.fetchAsyncWThread(() -> identityClient.getUserById(approvalMaster.getUserId(), version), virtualExecutor)
                 : CompletableFuture.completedFuture(null);
 
-            // Đợi cả 2 xong
-            CompletableFuture.allOf(userFuture, roleFuture).join();
-
-            RoleResponse roleRes = roleFuture.join();
-            UserResponse userRes = userFuture.join();
+            try {
+                CompletableFuture.allOf(userFuture, roleFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
+            RoleResponse roleRes = roleFuture.join().getData();
+            UserResponse userRes = userFuture.join().getData();
 
             if (roleRes != null) {
                 entity.setRoleId(roleRes.getId());

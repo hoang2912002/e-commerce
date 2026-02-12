@@ -13,7 +13,7 @@ import com.fashion.product.entity.ApprovalMaster;
 public interface ApprovalMasterService {
     ApprovalMasterResponse createApprovalMaster(ApprovalMasterRequest request);
     ApprovalMasterResponse updateApprovalMaster(ApprovalMasterRequest request);
-    ApprovalMasterResponse getApprovalMasterById(UUID id);
+    ApprovalMasterResponse getApprovalMasterById(UUID id, Long version);
     PaginationResponse<List<ApprovalMasterResponse>> getAllApprovalMaster(SearchRequest request);
     void deleteApprovalMasterById(Long id);
     List<ApprovalMaster> findRawAllApprovalMasterByEntityType(String entityType); 

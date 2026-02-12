@@ -92,6 +92,8 @@ public enum EnumError {
 
     //----------------Kafka-------------------
     PRODUCT_KAFKA_REQUEST_TIME_OUT_WITH_BROKER("PRODUCT-KAFKA-REQUEST-TIME-OUT-WITH-BROKER","Can not connect to Kafka", HttpStatus.REQUEST_TIMEOUT),
+    PRODUCT_KAFKA_SAGA_COMPLETED_MESSAGE_ERROR("PRODUCT-KAFKA-SAGA-COMPLETED-MESSAGE-ERROR", "Unable to handle successful saga completion state", HttpStatus.BAD_REQUEST),
+    PRODUCT_KAFKA_SAGA_FAILED_MESSAGE_ERROR("PRODUCT-KAFKA-SAGA-FAILED-MESSAGE-ERROR", "Unable to handle successful saga completion state", HttpStatus.BAD_REQUEST),
     PRODUCT_KAFKA_DATA_SERIALIZATION_ERROR("PRODUCT-KAFKA-DATA-SERIALIZATION-ERROR","Can not connect to Kafka", HttpStatus.BAD_REQUEST),
     ;
 

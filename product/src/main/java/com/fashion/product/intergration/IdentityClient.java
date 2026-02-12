@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.fashion.product.common.response.ApiResponse;
 import com.fashion.product.config.AuthenticationRequestInterceptor;
@@ -19,8 +20,8 @@ import com.fashion.product.intergration.config.FeignClientConfigError;
 })
 public interface IdentityClient {
     //--------------------Users--------------------
-    @GetMapping(value = "/users/{id}")
-    ApiResponse<UserResponse> getUserById(@PathVariable("id") UUID id);
+    @GetMapping(value = "/users/internal/get-internal-user-by-id")
+    ApiResponse<UserResponse> getUserById(@RequestParam("id") UUID id, @RequestParam("version") Long version);
 
     //--------------------Address--------------------
     @GetMapping(value = "/addresses/{id}")
@@ -28,6 +29,6 @@ public interface IdentityClient {
 
     //--------------------Role--------------------
     @GetMapping(value = "/roles/{id}")
-    ApiResponse<RoleResponse> getRoleById(@PathVariable("id") Long id);
+    ApiResponse<RoleResponse> getRoleById(@PathVariable("id") Long id, @RequestParam("version") Long version);
 
 }
