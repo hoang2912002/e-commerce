@@ -27,7 +27,7 @@ public class AddressResponse {
     String createdBy;
     Instant createdAt;
     String updatedBy;
-    boolean activated;
+    Boolean activated;
     Instant updatedAt;
 
     @NoArgsConstructor
