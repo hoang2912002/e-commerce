@@ -14,8 +14,8 @@ public interface UserService {
     User updateRefreshTokenUserByUserName(String userName, String refreshToken);
     UserResponse createUser(User user);
     UserResponse updateUser(User user);
-    UserResponse getUserById(UUID id);
+    UserResponse getUserById(UUID id, Long version);
     PaginationResponse<List<UserResponse>> getAllUsers(UserSearchRequest request);
     void deleteUserById(UUID id);
-    void validateInternalUserById(UUID id, Boolean isCheckRole);
+    void validateInternalUserById(UUID id, Boolean isCheckRole, Long version);
 }

@@ -17,11 +17,11 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class RoleResponse {
+public class RoleResponse extends VersionResponse{
     Long id;
     String name;
     String slug;
-    boolean activated;
+    Boolean activated;
     String createdBy;
     String updatedBy;
     Instant createdAt;

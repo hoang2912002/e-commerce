@@ -28,8 +28,10 @@ import com.fashion.identity.entity.Role;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.exception.ServiceException;
 import com.fashion.identity.mapper.PermissionMapper;
+import com.fashion.identity.properties.cache.IdentityServiceCacheProperties;
 import com.fashion.identity.repository.PermissionRepository;
 import com.fashion.identity.service.PermissionService;
+import com.fashion.identity.service.provider.CacheProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -42,9 +44,11 @@ import lombok.extern.slf4j.Slf4j;
 public class PermissionServiceImpl implements PermissionService {
     PermissionRepository permissionRepository;
     PermissionMapper permissionMapper;
+    IdentityServiceCacheProperties identityServiceCacheProperties;
+    CacheProvider cacheProvider;
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public PermissionResponse createPermission(Permission permission) {
         log.info("IDENTITY-SERVICE: [createPermission] start create permission ....");
         try {
@@ -65,7 +69,10 @@ public class PermissionServiceImpl implements PermissionService {
             .service(service)
             .activated(true)
             .build();
-            return this.permissionMapper.toDto(this.permissionRepository.saveAndFlush(createPermission)); 
+
+            PermissionResponse permissionResponse = this.permissionMapper.toDto(this.permissionRepository.saveAndFlush(createPermission));
+            this.updatePermissionCache(permissionResponse);
+            return permissionResponse; 
 
         } catch (ServiceException e) {
             throw e;
@@ -76,11 +83,11 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public PermissionResponse updatePermission(Permission permission) {
         log.info("IDENTITY-SERVICE: [updatePermission] start update permission ....");
         try {
-            final Permission updatePermission = this.lockPermissionById(permission.getId());
+            final Permission updatePermission = this.permissionRepository.lockPermissionById(permission.getId());
             final String method = permission.getMethod().toUpperCase();
             final String module = permission.getModule().toUpperCase();
             final String apiPath = permission.getApiPath();
@@ -96,7 +103,9 @@ public class PermissionServiceImpl implements PermissionService {
             updatePermission.setService(service);
             updatePermission.setName(permission.getName());
 
-            return this.permissionMapper.toDto(this.permissionRepository.saveAndFlush(updatePermission)); 
+            PermissionResponse permissionResponse = this.permissionMapper.toDto(this.permissionRepository.saveAndFlush(updatePermission));
+            this.updatePermissionCache(permissionResponse);
+            return permissionResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -106,9 +115,21 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     @Override
-    public PermissionResponse getPermissionById(Long id) {
+    public PermissionResponse getPermissionById(Long id, Long version) {
         try {
-            return this.permissionMapper.toDto(this.findRawPermissionById(id));
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, PermissionResponse.class, () -> 
+                this.permissionRepository.findById(id)
+                    .map((u) -> {
+                        PermissionResponse res = this.permissionMapper.toDto(u);
+                        res.setVersion(System.currentTimeMillis());
+                        return res;
+                    })
+                    .orElseThrow(
+                        () -> new ServiceException(EnumError.IDENTITY_PERMISSION_ERR_NOT_FOUND_ID, "permission.not.found.id",Map.of("id", id))
+                    )
+            );
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -169,24 +190,6 @@ public class PermissionServiceImpl implements PermissionService {
         throw new UnsupportedOperationException("Unimplemented method 'deletePermissionById'");
     }
     
-    @Override
-    @Transactional(readOnly = true)
-    public Permission lockPermissionById(Long id){
-        try {
-            return this.permissionRepository.lockPermissionById(id);
-        } catch (Exception e) {
-            log.error("IDENTITY-SERVICE: [lockPermissionById] Error: {}", e.getMessage());
-            throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
-        }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Permission findRawPermissionById(Long id) {
-        return this.permissionRepository.findById(id)
-                .orElseThrow(() -> new ServiceException(EnumError.IDENTITY_PERMISSION_ERR_NOT_FOUND_ID, "permission.not.found.id",Map.of("id", id)));
-    }
-    
     private void checkPermissionExist(String apiPath, String method, String service,Long excludeId){
         try {
             Optional<Permission> duplicate;
@@ -208,4 +211,31 @@ public class PermissionServiceImpl implements PermissionService {
             throw e;
         }
     }
+
+    private String getCacheKey(Long id){
+        return this.identityServiceCacheProperties.createCacheKey(
+            this.identityServiceCacheProperties.getKeys().getPermissionInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(Long id){
+        return this.identityServiceCacheProperties.createLockKey(
+            this.identityServiceCacheProperties.getKeys().getPermissionInfo(),
+            id
+        );
+    }
+
+    private void updatePermissionCache(PermissionResponse permissionResponse) {
+        try {
+            permissionResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(permissionResponse.getId());
+            cacheProvider.put(cacheKey, permissionResponse);
+            
+            log.info("IDENTITY-SERVICE: Updated cache for permission ID: {}", permissionResponse.getId());
+        } catch (Exception e) {
+            log.error("IDENTITY-SERVICE: [updatePermissionCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    } 
 }

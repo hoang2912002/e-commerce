@@ -57,8 +57,11 @@ public class RoleController {
 
     @GetMapping("/{id}")
     @ApiMessageResponse("role.success.get.single")
-    public ResponseEntity<RoleResponse> getRoleById(@PathVariable("id") Long id) {
-        return ResponseEntity.status(HttpStatus.OK).body(this.roleService.getRoleById(id));
+    public ResponseEntity<RoleResponse> getRoleById(
+        @PathVariable("id") Long id,
+        @RequestParam("version") Long version
+    ) {
+        return ResponseEntity.status(HttpStatus.OK).body(this.roleService.getRoleById(id, version));
     }
 
     @GetMapping("")

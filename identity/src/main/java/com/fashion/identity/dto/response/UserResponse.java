@@ -22,7 +22,7 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class UserResponse {
+public class UserResponse extends VersionResponse{
     UUID id;
     LocalDate dob;
     String email;
@@ -31,10 +31,10 @@ public class UserResponse {
     String phoneNumber;
     String userName;
     String avatar;
-    boolean emailVerified;
+    Boolean emailVerified;
     String verificationCode;
     LocalDateTime verificationExpiration; 
-    boolean activated;
+    Boolean activated;
     RoleResponse role;
     String createdBy;
     Instant createdAt;

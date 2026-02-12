@@ -73,9 +73,10 @@ public class UserController {
     @GetMapping("/{id}")
     @ApiMessageResponse("user.success.get.single")
     public ResponseEntity<UserResponse> getUserById(
-        @PathVariable("id") UUID id
+        @PathVariable("id") UUID id,
+        @RequestParam Long version
     ) {
-        return ResponseEntity.ok(this.userService.getUserById(id));
+        return ResponseEntity.ok(this.userService.getUserById(id, version));
     }
 
     @DeleteMapping("/{id}")
@@ -92,9 +93,10 @@ public class UserController {
     @ApiMessageResponse("user.success.get.single")
     public ResponseEntity<Void> validateInternalUserById(
         @RequestParam UUID id,
-        @RequestParam Boolean isCheckRole
+        @RequestParam Boolean isCheckRole,
+        @RequestParam Long version
     ) {
-        this.userService.validateInternalUserById(id,isCheckRole);
+        this.userService.validateInternalUserById(id,isCheckRole, version);
         return ResponseEntity.noContent().build();
     }
     
@@ -102,8 +104,9 @@ public class UserController {
     @GetMapping("/internal/get-internal-user-by-id")
     @ApiMessageResponse("user.success.get.single")
     public ResponseEntity<UserResponse> getInternalUserById(
-        @RequestParam UUID id
+        @RequestParam UUID id,
+        @RequestParam Long version
     ) {
-        return ResponseEntity.ok(this.userService.getUserById(id));
+        return ResponseEntity.ok(this.userService.getUserById(id, version));
     }
 }

@@ -25,14 +25,17 @@ import com.fashion.identity.dto.request.search.role.RoleSearchOption;
 import com.fashion.identity.dto.request.search.role.RoleSearchRequest;
 import com.fashion.identity.dto.response.PaginationResponse;
 import com.fashion.identity.dto.response.RoleResponse;
+import com.fashion.identity.dto.response.UserResponse;
 import com.fashion.identity.entity.Permission;
 import com.fashion.identity.entity.Role;
 import com.fashion.identity.entity.User;
 import com.fashion.identity.exception.ServiceException;
 import com.fashion.identity.mapper.RoleMapper;
+import com.fashion.identity.properties.cache.IdentityServiceCacheProperties;
 import com.fashion.identity.repository.RoleRepository;
 import com.fashion.identity.service.PermissionService;
 import com.fashion.identity.service.RoleService;
+import com.fashion.identity.service.provider.CacheProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -46,6 +49,8 @@ public class RoleServiceImpl implements RoleService {
     final RoleRepository roleRepository;
     final RoleMapper roleMapper;
     final PermissionService permissionService;
+    final IdentityServiceCacheProperties identityServiceCacheProperties;
+    final CacheProvider cacheProvider;
 
     @Value("${role.slug.admin}")
     public static String roleAdmin;
@@ -57,6 +62,7 @@ public class RoleServiceImpl implements RoleService {
     public static String roleSeller;
 
     @Override
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public RoleResponse createRole(Role role){
         log.info("IDENTITY-SERVICE: [createRole] start create role ....");
         try {
@@ -77,7 +83,9 @@ public class RoleServiceImpl implements RoleService {
             .activated(true)
             .permissions(permissions)
             .build();
-            return roleMapper.toDto(this.roleRepository.save(createRole));
+            final RoleResponse roleResponse = roleMapper.toDto(this.roleRepository.save(createRole));
+            this.updateRoleCache(roleResponse);
+            return roleResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -121,7 +129,9 @@ public class RoleServiceImpl implements RoleService {
             updateRole.setSlug(slug);
             updateRole.setActivated(true);
             updateRole.setPermissions(permissions);
-            return roleMapper.toDto(this.roleRepository.save(updateRole));
+            final RoleResponse roleResponse = roleMapper.toDto(this.roleRepository.save(updateRole));
+            this.updateRoleCache(roleResponse);
+            return roleResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -132,9 +142,19 @@ public class RoleServiceImpl implements RoleService {
 
     @Override
     @Transactional(readOnly=true)
-    public RoleResponse getRoleById(Long id) {
+    public RoleResponse getRoleById(Long id, Long version) {
         try {
-            return roleMapper.toDto(this.findRawRoleById(id));
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, RoleResponse.class, () -> 
+                this.roleRepository.findById(id)
+                .map((u) -> {
+                    RoleResponse res = this.roleMapper.toDto(u);
+                    res.setVersion(System.currentTimeMillis());
+                    return res;
+                })
+                .orElseThrow(() -> new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID, "role.not.found.id",Map.of("id", id)))
+            );
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -185,16 +205,7 @@ public class RoleServiceImpl implements RoleService {
         throw new UnsupportedOperationException("Unimplemented method 'deleteRoleById'");
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public Role findRawRoleById(Long id) {
-        return this.roleRepository.findById(id)
-                .orElseThrow(() -> new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID, "role.not.found.id",Map.of("id", id)));
-    }
-
-    @Override
-    @Transactional(rollbackFor = ServiceException.class)
-    public Role lockRoleById(Long id){
+    private Role lockRoleById(Long id){
         try {
             return this.roleRepository.lockRoleById(id);
         } catch (Exception e) {
@@ -202,4 +213,31 @@ public class RoleServiceImpl implements RoleService {
             throw new ServiceException(EnumError.IDENTITY_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
+
+    private String getCacheKey(Long id){
+        return this.identityServiceCacheProperties.createCacheKey(
+            this.identityServiceCacheProperties.getKeys().getRoleInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(Long id){
+        return this.identityServiceCacheProperties.createLockKey(
+            this.identityServiceCacheProperties.getKeys().getRoleInfo(),
+            id
+        );
+    }
+
+    private void updateRoleCache(RoleResponse roleResponse) {
+        try {
+            roleResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(roleResponse.getId());
+            cacheProvider.put(cacheKey, roleResponse);
+            
+            log.info("IDENTITY-SERVICE: Updated cache for role ID: {}", roleResponse.getId());
+        } catch (Exception e) {
+            log.error("IDENTITY-SERVICE: [updateRoleCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    } 
 }

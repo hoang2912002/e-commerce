@@ -41,10 +41,12 @@ import com.fashion.identity.entity.User;
 import com.fashion.identity.exception.ServiceException;
 import com.fashion.identity.mapper.UserMapper;
 import com.fashion.identity.messaging.producer.IdentityServiceProducer;
+import com.fashion.identity.properties.cache.IdentityServiceCacheProperties;
 import com.fashion.identity.repository.RoleRepository;
 import com.fashion.identity.repository.UserRepository;
 import com.fashion.identity.service.AddressService;
 import com.fashion.identity.service.UserService;
+import com.fashion.identity.service.provider.CacheProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +65,8 @@ public class UserServiceImpl implements UserService{
     final RoleRepository roleRepository;
     final IdentityServiceProducer identityProducer;
     final ApplicationEventPublisher applicationEventPublisher;
+    final CacheProvider cacheProvider;
+    final IdentityServiceCacheProperties identityServiceCacheProperties;
 
     @Value("${role.slug.admin}")
     String roleAdmin;
@@ -104,7 +108,7 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public User updateRefreshTokenUserByUserName(String userName, String refreshToken) {
         try {
             User user = this.userRepository.findByUserName(userName).orElseThrow(
@@ -126,7 +130,7 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // @Transactional(readOnly = true)
     public PaginationResponse<List<UserResponse>> getAllUsers(UserSearchRequest request) {
         try {
             UserSearchModel searchModel = request.getSearchModel();
@@ -158,7 +162,7 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public UserResponse createUser(User user){
         log.info("IDENTITY-SERVICE: create new user");
         try {
@@ -199,15 +203,6 @@ public class UserServiceImpl implements UserService{
                     .verificationExpiration(FormatTime.StringDateLocalDateTime(savedUser.getVerificationExpiration()))
                     .build();
                 applicationEventPublisher.publishEvent(new InternalUserCreatedEvent(this, eventPayload));
-                // identityProducer.produceUserEventSuccess(
-                //     UserVerifyCodeEvent.builder()
-                //     .id(savedUser.getId())
-                //     .fullName(savedUser.getFullName())
-                //     .email(savedUser.getEmail())
-                //     .verifyCode(savedUser.getVerificationCode())
-                //     .verificationExpiration(FormatTime.StringDateLocalDateTime(savedUser.getVerificationExpiration()))
-                //     .build()
-                // );
             }
             // Save address
             final List<InnerAddressResponse> addressServices = this.addressService.handleAddressesForUser(
@@ -223,6 +218,7 @@ public class UserServiceImpl implements UserService{
             );
             final UserResponse userDTO = userMapper.toDto(savedUser);
             userDTO.setAddresses(addressServices);
+            this.updateUserCache(userDTO);
             return userDTO;
         } catch (ServiceException e) {
             throw e;
@@ -233,11 +229,21 @@ public class UserServiceImpl implements UserService{
     }
 
     @Override
-    public UserResponse getUserById(UUID id){
+    public UserResponse getUserById(UUID id, Long version){
         try {
-            final User user = this.userRepository.findById(ConvertUuidUtil.toUuid(id))
-                .orElseThrow(() -> new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID, "user.not.found.id",Map.of("id", id)));
-            return userMapper.toDto(user);
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, UserResponse.class, 
+                () -> 
+                this.userRepository.findById(ConvertUuidUtil.toUuid(id))
+                .map((u) -> {
+                    UserResponse res = this.userMapper.toDto(u);
+                    res.setVersion(System.currentTimeMillis());
+                    return res;
+                })
+                .orElse(null)
+            );
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -246,13 +252,25 @@ public class UserServiceImpl implements UserService{
     }
     
     @Override
-    @Transactional(readOnly = true)
-    public void validateInternalUserById(UUID id, Boolean isCheckRole){
+    // @Transactional(readOnly = true)
+    public void validateInternalUserById(UUID id, Boolean isCheckRole, Long version){
         try {
-            User user = this.userRepository.findById(ConvertUuidUtil.toUuid(id))
-                .orElseThrow(() -> new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID, "user.not.found.id",Map.of("id", id)));
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            UserResponse userResponse = cacheProvider.getDataResponse(cacheKey, lockKey, version, UserResponse.class, 
+                () -> 
+                this.userRepository.findById(ConvertUuidUtil.toUuid(id))
+                .map((u) -> {
+                    UserResponse res = this.userMapper.toDto(u);
+                    res.setVersion(System.currentTimeMillis());
+                    return res;
+                })
+                .orElseThrow(
+                    () -> new ServiceException(EnumError.IDENTITY_ROLE_ERR_NOT_FOUND_ID, "user.not.found.id",Map.of("id", id))
+                )
+            );
             if(isCheckRole){
-                String userRole = user.getRole().getSlug();
+                String userRole = userResponse.getRole().getSlug();
                 if(!List.of(roleAdmin,roleSeller).contains(userRole)){
                     throw new ServiceException(
                     EnumError.IDENTITY_PERMISSION_ACCESS_DENIED,
@@ -302,6 +320,7 @@ public class UserServiceImpl implements UserService{
 
             UserResponse updateUserDTO = userMapper.toDto(this.userRepository.saveAndFlush(updateUser));
             updateUserDTO.setAddresses(addresses);
+            this.updateUserCache(updateUserDTO);
             return updateUserDTO;
         } catch (ServiceException e){
             throw e;
@@ -332,4 +351,31 @@ public class UserServiceImpl implements UserService{
                 throw new ServiceException(EnumError.IDENTITY_USER_DATA_EXISTED_PHONE_NUMBER,"user.exist.phoneNumber", Map.of("phoneNumber", user.getPhoneNumber()));
         });
     }
+
+    private String getCacheKey(UUID id){
+        return this.identityServiceCacheProperties.createCacheKey(
+            this.identityServiceCacheProperties.getKeys().getUserInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(UUID id){
+        return this.identityServiceCacheProperties.createLockKey(
+            this.identityServiceCacheProperties.getKeys().getUserInfo(),
+            id
+        );
+    }
+
+    private void updateUserCache(UserResponse userResponse) {
+        try {
+            userResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(userResponse.getId());
+            cacheProvider.put(cacheKey, userResponse);
+            
+            log.info("IDENTITY-SERVICE: Updated cache for user ID: {}", userResponse.getId());
+        } catch (Exception e) {
+            log.error("IDENTITY-SERVICE: [updateUserCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    } 
 }

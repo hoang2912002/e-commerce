@@ -28,9 +28,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 
-
-
-
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/permissions")
@@ -55,9 +52,10 @@ public class PermissionController {
     
     @GetMapping("/{id}")
     public ResponseEntity<PermissionResponse> getPermissionById(
-        @PathVariable("id") Long id
+        @PathVariable("id") Long id,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.ok(this.permissionService.getPermissionById(id));
+        return ResponseEntity.ok(this.permissionService.getPermissionById(id, version));
     }
     
     @GetMapping("")

@@ -14,14 +14,14 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PermissionResponse {
+public class PermissionResponse extends VersionResponse{
     Long id;
     String name;
     String apiPath;
     String method;
     String module;
     String service;
-    boolean activated;
+    Boolean activated;
     String createdBy;
     Instant createdAt;
     String updatedBy;

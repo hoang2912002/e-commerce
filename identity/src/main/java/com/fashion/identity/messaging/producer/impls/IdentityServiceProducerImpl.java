@@ -34,7 +34,7 @@ public class IdentityServiceProducerImpl implements IdentityServiceProducer{
     KafkaTopicIdentityProperties kafkaTopicIdentityProperties;
     
     @Override
-    @Async("taskExecutor")
+    @Async("virtualExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void produceUserEventSuccess(InternalUserCreatedEvent event) {
         // Send mail after create user successful
@@ -55,7 +55,7 @@ public class IdentityServiceProducerImpl implements IdentityServiceProducer{
     }
     
     @Override
-    @Async("taskExecutor")
+    @Async("virtualExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void produceUserVerifyEventSuccess(InternalUserRegistedEvent event) {
         var topic = kafkaTopicIdentityProperties.getUserCreatedSuccess();

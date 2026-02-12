@@ -8,12 +8,10 @@ import com.fashion.identity.dto.response.PermissionResponse;
 import com.fashion.identity.entity.Permission;
 
 public interface PermissionService {
-    Permission findRawPermissionById(Long id);
     PermissionResponse createPermission(Permission permission);
     PermissionResponse updatePermission(Permission permission);
-    PermissionResponse getPermissionById(Long id);
+    PermissionResponse getPermissionById(Long id, Long version);
     List<Permission> getPermissionByListId(List<Long> listId);
     PaginationResponse<List<PermissionResponse>> getAllPermissions(UserSearchRequest request);
     void deletePermissionById(Long id);
-    Permission lockPermissionById(Long id);
 }

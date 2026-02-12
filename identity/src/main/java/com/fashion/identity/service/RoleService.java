@@ -12,15 +12,11 @@ public interface RoleService {
 
     RoleResponse updateRole(Role role);
 
-    RoleResponse getRoleById(Long id);
+    RoleResponse getRoleById(Long id, Long version);
 
     PaginationResponse<List<RoleResponse>> getAllRole(RoleSearchRequest request);
 
     void deleteRoleById(Long id);
 
     boolean existsBySlug(String slug, Long id);
-
-    Role findRawRoleById(Long id);
-
-    Role lockRoleById(Long id);
 }
