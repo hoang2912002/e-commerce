@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS product_skus (
     temp_stock INTEGER DEFAULT 0,
     activated BOOLEAN DEFAULT TRUE,
     product_id UUID NOT NULL,
-    
+    event_id UUID NOT NULL,
+
     created_by VARCHAR(50),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by VARCHAR(50),
@@ -216,6 +217,8 @@ CREATE TABLE IF NOT EXISTS approval_histories (
     approved_at TIMESTAMP,
     activated BOOLEAN DEFAULT TRUE,
     approval_master_id UUID NOT NULL,
+    event_id UUID NOT NULL,
+
     created_by VARCHAR(50),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by VARCHAR(50),
