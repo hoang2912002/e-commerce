@@ -20,7 +20,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class InventoryResponse {
+public class InventoryResponse extends VersionResponse{
     UUID id;
     Integer quantityAvailable;
     Integer quantityReserved;

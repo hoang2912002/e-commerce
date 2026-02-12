@@ -37,7 +37,7 @@ public class PaymentResponse {
     Instant createdAt;
     String updatedBy;
     Instant updatedAt;
-    boolean activated;
+    Boolean activated;
 
     @NoArgsConstructor
     @AllArgsConstructor

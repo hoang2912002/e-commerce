@@ -39,6 +39,6 @@ public class ProductSkuResponse {
         UUID id;
         String sku;
         BigDecimal price;
-        int stock;
+        int tempStock;
     }
 }

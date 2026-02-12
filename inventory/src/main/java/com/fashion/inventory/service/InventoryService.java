@@ -23,11 +23,11 @@ public interface InventoryService {
     // Internal use in order-service, product-service
     boolean existsByProductSkuId(UUID id);
     // Internal use in product-service
-    void adjustmentsStockAfterProductApproved(List<ProductApprovedEvent> inventories, UUID eventId);
+    List<UUID> adjustmentsStockAfterProductApproved(List<ProductApprovedEvent> inventories, UUID eventId);
 
     InventoryResponse createInventory(InventoryRequest inventory);
     InventoryResponse updateInventory(InventoryRequest inventory);
-    InventoryResponse getInventoryById(UUID id);
+    InventoryResponse getInventoryById(UUID id, Long version);
     PaginationResponse<List<InventoryResponse>> getAllInventories(SearchRequest request);
     // Internal use in product-service
     List<Inventory> findRawInventoriesByProductId(UUID productId);

@@ -4,8 +4,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -16,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fashion.inventory.common.enums.EnumError;
 import com.fashion.inventory.common.enums.WareHouseStatusEnum;
 import com.fashion.inventory.common.response.ApiResponse;
+import com.fashion.inventory.common.util.AsyncUtils;
 import com.fashion.inventory.common.util.ConvertUuidUtil;
 import com.fashion.inventory.common.util.PageableUtils;
 import com.fashion.inventory.common.util.SpecificationUtils;
@@ -31,9 +36,11 @@ import com.fashion.inventory.entity.WareHouse;
 import com.fashion.inventory.exception.ServiceException;
 import com.fashion.inventory.intergration.IdentityClient;
 import com.fashion.inventory.mapper.WareHouseMapper;
+import com.fashion.inventory.properties.cache.InventoryServiceCacheProperties;
 import com.fashion.inventory.repository.WareHouseRepository;
 import com.fashion.inventory.security.SecurityUtils;
 import com.fashion.inventory.service.WareHouseService;
+import com.fashion.inventory.service.provider.CacheProvider;
 import com.fashion.inventory.service.provider.WareHouseUpSertErrorProvider;
 import com.fashion.inventory.service.provider.WareHouseUpdateStatusErrorProvider;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -55,7 +62,9 @@ public class WareHouseServiceImpl implements WareHouseService {
     final WareHouseUpSertErrorProvider wareHouseUpSertErrorProvider;
     final WareHouseUpdateStatusErrorProvider wareHouseUpdateStatusErrorProvider;
     final IdentityClient identityClient;
-    
+    final CacheProvider cacheProvider;
+    final InventoryServiceCacheProperties inventoryServiceCacheProperties;
+    final Executor virtualExecutor;
     @Value("${role.admin}")
     String roleAdmin;
     
@@ -63,7 +72,7 @@ public class WareHouseServiceImpl implements WareHouseService {
     String roleSeller;
     
     @Override
-    @Transactional(readOnly = true)
+    // @Transactional(readOnly = true)
     public PaginationResponse<List<WareHouseResponse>> getAllWareHouses(SearchRequest request) {
         try {
             SearchOption searchOption = request.getSearchOption();
@@ -98,11 +107,13 @@ public class WareHouseServiceImpl implements WareHouseService {
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public WareHouseResponse createWareHouse(WareHouseRequest request) {
         try {
             log.info("INVENTORY-SERVICE: [createWareHouse] Start create ware house");
-            return this.upSertWareHouse(request);
+            WareHouseResponse wareHouseResponse = this.upSertWareHouse(request, true);
+            this.updateWareHouseCache(wareHouseResponse);
+            return wareHouseResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -116,7 +127,9 @@ public class WareHouseServiceImpl implements WareHouseService {
     public WareHouseResponse updateWareHouse(WareHouseRequest request) {
         try {
             log.info("INVENTORY-SERVICE: [updateWareHouse] Start update ware house");
-            return this.upSertWareHouse(request);
+            WareHouseResponse wareHouseResponse = this.upSertWareHouse(request, false);
+            this.updateWareHouseCache(wareHouseResponse);
+            return wareHouseResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -126,12 +139,20 @@ public class WareHouseServiceImpl implements WareHouseService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public WareHouseResponse getWareHouseById(UUID id) {
+    // @Transactional(readOnly = true)
+    public WareHouseResponse getWareHouseById(UUID id, Long version) {
         try {
-            return this.wareHouseMapper.toDto(this.wareHouseRepository.findById(id).orElseThrow(
-                () -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,"ware.house.not.found.id", Map.of("id", id))
-            ));
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, WareHouseResponse.class, () ->
+                this.wareHouseRepository.findById(id)
+                    .map((w) -> {
+                        WareHouseResponse res = this.wareHouseMapper.toDto(w);
+                        res.setVersion(System.currentTimeMillis());
+                        return res;
+                    })
+                    .orElseThrow(() -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,"ware.house.not.found.id", Map.of("id", id)))
+            );
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -147,14 +168,14 @@ public class WareHouseServiceImpl implements WareHouseService {
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public WareHouseResponse updateWareHouseStatus(WareHouseRequest request) {
         try {
             log.info("INVENTORY-SERVICE: [updateWareHouseStatus] Start update ware house status");
             UserInsideToken currentUser = SecurityUtils.getCurrentUserId().orElseThrow(
                 () -> new ServiceException(EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, "auth.accessToken.invalid")
             );
-            ApiResponse<Void> userResponse = this.identityClient.validateInternalUserById(currentUser.getId(), true);
+            ApiResponse<Void> userResponse = this.identityClient.validateInternalUserById(currentUser.getId(), true, request.getVersion());
             WareHouse wareHouse = this.wareHouseRepository.lockWareHouseById(request.getId()).orElseThrow(
                 () -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,"ware.house.not.found.id", Map.of("id", request.getId()))
             );
@@ -168,38 +189,108 @@ public class WareHouseServiceImpl implements WareHouseService {
             throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
+
+    @Cacheable(value = "warehouse", key = "#wareHouseId", unless = "#result == null")
+    public WareHouse fetchWareHouse(UUID wareHouseId){
+        return this.wareHouseRepository.findById(wareHouseId)
+            .orElseThrow(() -> new ServiceException(
+                EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,
+                "ware.house.not.found.id", 
+                Map.of("id", wareHouseId)
+            )
+        );
+    }
     
-    private WareHouseResponse upSertWareHouse(WareHouseRequest request){
+    private WareHouseResponse upSertWareHouse(WareHouseRequest request, boolean isCreate) {
         try {
-            UserInsideToken currentUser = SecurityUtils.getCurrentUserId().orElseThrow(
-                () -> new ServiceException(EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, "auth.accessToken.invalid")
+            UserInsideToken currentUser = SecurityUtils.getCurrentUserId()
+                .orElseThrow(() -> new ServiceException(
+                    EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, 
+                    "auth.accessToken.invalid"
+                ));
+
+            final String normalizedCode = request.getCode().trim().toUpperCase();
+            final String normalizedName = request.getName().trim();
+
+            CompletableFuture<Void> userValidationFuture = AsyncUtils.fetchVoidWThread(
+                () -> identityClient.validateInternalUserById(
+                    currentUser.getId(), 
+                    true, 
+                    request.getVersion()
+                ), 
+                virtualExecutor
             );
-            ApiResponse<Void> userResponse = this.identityClient.validateInternalUserById(currentUser.getId(), true);
-            boolean isCreate = request.getId() == null;
-            WareHouse wareHouse;
-            if(isCreate){
-                wareHouse = this.wareHouseMapper.toValidated(request);
-                wareHouse.setStatus(WareHouseStatusEnum.PENDING);
-            } else{
-                wareHouse = this.wareHouseRepository.lockWareHouseById(request.getId()).orElseThrow(
-                    () -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,"ware.house.not.found.id", Map.of("id", request.getId()))
+
+            CompletableFuture<WareHouse> wareHouseFuture;
+            CompletableFuture<Void> duplicateCheckFuture;
+
+            if (isCreate) {
+                wareHouseFuture = CompletableFuture.completedFuture(
+                    WareHouse.builder()
+                        .code(normalizedCode)
+                        .name(normalizedName)
+                        .location(request.getLocation())
+                        .status(WareHouseStatusEnum.PENDING)
+                        .activated(true)
+                        .build()
                 );
-                wareHouse.getStatus().validateUpSertAbility(wareHouseUpSertErrorProvider, Map.of("code", wareHouse.getCode(), "name", wareHouse.getName()));
+
+                duplicateCheckFuture = AsyncUtils.fetchVoidWThread(
+                    () -> checkExistedWareHouse(normalizedCode, normalizedName, null),
+                    virtualExecutor
+                );
+            } else {
+                // UPDATE: Fetch existing warehouse
+                wareHouseFuture = AsyncUtils.fetchAsyncWThread(
+                    () -> wareHouseRepository.lockWareHouseById(request.getId())
+                        .orElseThrow(() -> new ServiceException(
+                            EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID,
+                            "ware.house.not.found.id", 
+                            Map.of("id", request.getId())
+                        )),
+                    virtualExecutor
+                );
+
+                // Duplicate check will happen after we have the existing warehouse
+                duplicateCheckFuture = CompletableFuture.completedFuture(null);
             }
-            this.checkExistedWareHouse(wareHouse.getCode(),wareHouse.getName(),wareHouse.getId());
-            wareHouse.setName(request.getName());
+
+            try {
+                CompletableFuture.allOf(userValidationFuture, wareHouseFuture, duplicateCheckFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
+
+            WareHouse wareHouse = wareHouseFuture.join();
+
+            if (!isCreate) {
+                wareHouse.getStatus().validateUpSertAbility(
+                    wareHouseUpSertErrorProvider, 
+                    Map.of("code", wareHouse.getCode(), "name", wareHouse.getName())
+                );
+
+                checkExistedWareHouse(normalizedCode, normalizedName, wareHouse.getId());
+            }
+
+            wareHouse.setCode(normalizedCode);
+            wareHouse.setName(normalizedName);
             wareHouse.setLocation(request.getLocation());
             wareHouse.setActivated(true);
-            wareHouse.setCode(request.getCode().trim().toUpperCase());
-            return this.wareHouseMapper.toDto(this.wareHouseRepository.save(wareHouse));
+
+            WareHouse savedWareHouse = wareHouseRepository.save(wareHouse);
+            return wareHouseMapper.toDto(savedWareHouse);
+
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
-            log.error("INVENTORY-SERVICE: [upSertWareHouse] Error: {}", e.getMessage(), e);
+            log.error("INVENTORY-SERVICE: [upSertWareHouseOptimized] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
-
+    
     private void checkExistedWareHouse(String code, String name, UUID excludedId){
         try {
             Optional<WareHouse> optional;
@@ -231,4 +322,31 @@ public class WareHouseServiceImpl implements WareHouseService {
             throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
+
+    private String getCacheKey(UUID id){
+        return this.inventoryServiceCacheProperties.createCacheKey(
+            this.inventoryServiceCacheProperties.getKeys().getWareHouseInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(UUID id){
+        return this.inventoryServiceCacheProperties.createLockKey(
+            this.inventoryServiceCacheProperties.getKeys().getWareHouseInfo(),
+            id
+        );
+    }
+
+    private void updateWareHouseCache(WareHouseResponse wareHouseResponse) {
+        try {
+            wareHouseResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(wareHouseResponse.getId());
+            cacheProvider.put(cacheKey, wareHouseResponse);
+            
+            log.info("INVENTORY-SERVICE: Updated cache for ware house ID: {}", wareHouseResponse.getId());
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [updateWareHouseCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    } 
 }

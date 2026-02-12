@@ -48,6 +48,9 @@ public class WareHouseRequest {
     String createdBy;
     String updatedBy;
 
+    @NotNull(groups = {Create.class, Update.class}, message = "ware.house.version.notNull")
+    Long version;
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor

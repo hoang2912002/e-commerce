@@ -13,13 +13,16 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.inventory.entity.Inventory;
+import com.fashion.inventory.entity.WareHouse;
 
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
 
-
+@Repository
 public interface InventoryRepository extends JpaRepository<Inventory, UUID>, JpaSpecificationExecutor<Inventory> {
     @Query("SELECT i FROM Inventory i WHERE i.productId = :productId AND i.productSkuId = :productSkuId AND i.wareHouse.id = :wareHouseId")
     Optional<Inventory> findDuplicateForCreate(
@@ -48,6 +51,13 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID>, Jpa
 
     Optional<Inventory> findByProductIdAndProductSkuId(UUID productId, UUID productSkuId);
 
+    @Transactional
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i FROM Inventory i WHERE i.id =:id")
+    @QueryHints({
+        @QueryHint(name = "javax.persistence.lock.timeout", value = "0")
+    })
+    Optional<Inventory> lockInventoryById(@Param("id") UUID id);
 
     // @Modifying only use for command line return back number of row changed(Specially support for INSERT,UPDATE,DELETE)
     @Query(value = "UPDATE inventories " +

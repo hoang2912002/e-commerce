@@ -47,6 +47,10 @@ public enum EnumError {
     INVENTORY_INVENTORY_INVALID_QUANTITY_AVAILABLE("INVENTORY-INVENTORY-INVALID-QUANTITY-AVAILABLE","Inventory quantity available must not be negative number", HttpStatus.CONFLICT),
     INVENTORY_INVENTORY_ERR_NOT_FOUND_PRODUCT_PRODUCT_SKU_WARE_HOUSE("INVENTORY-INVENTORY-ERR-NOT-FOUND-PRODUCT-PRODUCT-SKU-WARE-HOUSE","Not found inventory with product, product sku, ware house",HttpStatus.BAD_REQUEST),
 
+    //----------------Inventory transaction-------
+    INVENTORY_INVENTORY_TRANSACTION_ERR_NOT_FOUND_PRODUCT_ID("INVENTORY-INVENTORY-TRANSACTION-CATE_NF-PRODUCT-ID","Not found inventory transaction with Product ID:",HttpStatus.CONFLICT),
+    INVENTORY_INVENTORY_TRANSACTION_DATA_EXISTED_EVENT_ID("INVENTORY-INVENTORY-TRANSACTION-DTE-EVENT-ID","Inventory already existed with the event id:",HttpStatus.CONFLICT),
+
     //----------------Product sku-------------------
     INVENTORY_PRODUCT_SKU_ERR_NOT_FOUND_ID("INVENTORY-PRODUCT-SKU-ERR-NOT-FOUND-ID","Not found product sku with id:",HttpStatus.BAD_REQUEST),
 

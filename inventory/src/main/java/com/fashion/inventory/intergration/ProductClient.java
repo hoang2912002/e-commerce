@@ -26,7 +26,7 @@ public interface ProductClient {
     ApiResponse<Void> validateInternalProductById(@RequestParam UUID productId, @RequestParam UUID productSkuId);
     
     @GetMapping(value = "/products/internal/get-internal-product-by-id")
-    ApiResponse<ProductResponse> getInternalProductByProductId(@RequestParam UUID productId);
+    ApiResponse<ProductResponse> getInternalProductByProductId(@RequestParam UUID productId, @RequestParam Long version);
 
     //--------------------Product sku--------------------
     @GetMapping(value = "/productSkus/internal/get-internal-product-sku-by-list-id")

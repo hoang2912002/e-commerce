@@ -21,5 +21,5 @@ import com.fashion.inventory.intergration.config.FeignClientConfigError;
 public interface IdentityClient {
     //--------------------Users--------------------
     @GetMapping(value = "/users/internal/validate-internal-user-role-by-id")
-    ApiResponse<Void> validateInternalUserById(@RequestParam UUID id, @RequestParam Boolean isCheckRole);
+    ApiResponse<Void> validateInternalUserById(@RequestParam UUID id, @RequestParam Boolean isCheckRole, @RequestParam Long version);
 }

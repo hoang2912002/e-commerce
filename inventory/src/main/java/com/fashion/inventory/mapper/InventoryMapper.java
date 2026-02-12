@@ -15,13 +15,14 @@ import com.fashion.inventory.entity.Inventory;
 @Mapper(
     componentModel = "spring",
     uses = {
-
+        WareHouseMapper.class
     }
 )
 public interface InventoryMapper extends EntityMapper<InventoryResponse, Inventory, InnerInventoryResponse, InventoryRequest>{
     InventoryMapper INSTANCE = Mappers.getMapper(InventoryMapper.class);
 
     @Named("toDto")
+    @Mapping(target = "warehouse", source = "wareHouse", qualifiedByName = "toInnerEntity")
     InventoryResponse toDto(Inventory entity);
     List<InventoryResponse> toDto(List<Inventory> entity);
 

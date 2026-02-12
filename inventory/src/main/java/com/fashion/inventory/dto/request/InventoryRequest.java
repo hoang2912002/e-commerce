@@ -40,12 +40,14 @@ public class InventoryRequest {
     @NotNull(groups = {Create.class,Update.class}, message = "inventory.productSkuId.notNull")
     UUID productSkuId;
     @Valid
-    InnerWareHouseRequest warehouse;
+    InnerWareHouseRequest wareHouse;
     Boolean activated;
     String createdBy;
     Instant createdAt;
     String updatedBy;
     Instant updatedAt;
+    @NotNull(groups = {Create.class,Update.class}, message = "inventory.version.notNull")
+    Long version;
 
     @Data
     @AllArgsConstructor

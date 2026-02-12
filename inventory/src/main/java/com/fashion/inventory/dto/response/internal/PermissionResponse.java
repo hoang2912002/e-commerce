@@ -20,7 +20,7 @@ public class PermissionResponse {
     String method;
     String module;
     String service;
-    boolean activated;
+    Boolean activated;
     String createdBy;
     Instant createdAt;
     String updatedBy;

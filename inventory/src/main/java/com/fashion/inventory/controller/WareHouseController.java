@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.inventory.common.annotation.ApiMessageResponse;
@@ -73,9 +74,10 @@ public class WareHouseController {
     @GetMapping("/{id}")
     @ApiMessageResponse("ware.house.success.get.single")
     public ResponseEntity<WareHouseResponse> getWareHouseById(
-        @PathVariable("id") UUID id
+        @PathVariable("id") UUID id,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.ok(this.wareHouseService.getWareHouseById(id));
+        return ResponseEntity.ok(this.wareHouseService.getWareHouseById(id, version));
     }
 
     @DeleteMapping("/{id}")

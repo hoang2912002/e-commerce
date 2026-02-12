@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.inventory.common.annotation.ApiMessageResponse;
@@ -43,7 +44,7 @@ public class InventoryController {
     public ResponseEntity<InventoryResponse> createInventory(
         @RequestBody @Validated(InventoryRequest.Create.class) InventoryRequest inventory
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(null);
+        return ResponseEntity.status(HttpStatus.CREATED).body(this.inventoryService.createInventory(inventory));
     }
 
     @PutMapping("")
@@ -51,15 +52,16 @@ public class InventoryController {
     public ResponseEntity<InventoryResponse> updateInventory(
         @RequestBody @Validated(InventoryRequest.Update.class) InventoryRequest inventory    
     ) {
-        return ResponseEntity.status(HttpStatus.OK).body(null);
+        return ResponseEntity.status(HttpStatus.OK).body(this.inventoryService.updateInventory(inventory));
     }
     
     @GetMapping("/{id}")
     @ApiMessageResponse("inventory.success.get.single")
     public ResponseEntity<InventoryResponse> getInventoryById(
-        @PathVariable("id") UUID id
+        @PathVariable("id") UUID id,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.status(HttpStatus.OK).body(this.inventoryService.getInventoryById(id));
+        return ResponseEntity.status(HttpStatus.OK).body(this.inventoryService.getInventoryById(id, version));
     }
     
     @GetMapping("")

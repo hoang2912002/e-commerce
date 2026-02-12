@@ -15,7 +15,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class WareHouseResponse {
+public class WareHouseResponse extends VersionResponse{
     UUID id;
     String code;
     String name;

@@ -9,10 +9,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -60,11 +62,14 @@ import com.fashion.inventory.exception.ServiceException;
 import com.fashion.inventory.intergration.IdentityClient;
 import com.fashion.inventory.intergration.ProductClient;
 import com.fashion.inventory.mapper.InventoryMapper;
+import com.fashion.inventory.properties.cache.InventoryServiceCacheProperties;
 import com.fashion.inventory.repository.InventoryRepository;
 import com.fashion.inventory.repository.InventoryTransactionRepository;
 import com.fashion.inventory.repository.WareHouseRepository;
 import com.fashion.inventory.security.SecurityUtils;
 import com.fashion.inventory.service.InventoryService;
+import com.fashion.inventory.service.WareHouseService;
+import com.fashion.inventory.service.provider.CacheProvider;
 import com.fashion.inventory.service.provider.WareHouseUpSertOrderErrorProvider;
 
 import jakarta.persistence.EntityManager;
@@ -86,6 +91,10 @@ public class InventoryServiceImpl implements InventoryService {
     final InventoryTransactionRepository inventoryTransactionRepository;
     final WareHouseUpSertOrderErrorProvider wareHouseUpSertOrderErrorProvider;
     final EntityManager entityManager;
+    final Executor virtualExecutor;
+    final WareHouseService wareHouseService;
+    final InventoryServiceCacheProperties inventoryServiceCacheProperties;
+    final CacheProvider cacheProvider;
     @Value("${role.admin}")
     String roleAdmin;
     
@@ -105,14 +114,15 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
-    public void adjustmentsStockAfterProductApproved(List<ProductApprovedEvent> events, UUID eventId) {
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
+    public List<UUID> adjustmentsStockAfterProductApproved(List<ProductApprovedEvent> events, UUID eventId) {
         log.info("INVENTORY-SERVICE: [adjustmentsStockAfterProductApproved] Start import/adjustment inventory");
         try {
-            if (events == null || events.isEmpty()) return;
+            if (events == null || events.isEmpty())
+                throw new ServiceException(EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_PRODUCT_ID, "inventory.transaction.exist.eventId");
             if(this.inventoryTransactionRepository.existsByEventIdAndReferenceTypeAndReferenceId(eventId,InventoryTransactionReferenceTypeEnum.PRODUCT,events.getFirst().getProductId())){
                 log.warn("INVENTORY-SERVICE: [adjustmentsStockAfterProductApproved] Skip duplicated product approved eventId, productId={}", events.getFirst().getProductId(), eventId);
-                return;
+                throw new ServiceException(EnumError.INVENTORY_INVENTORY_TRANSACTION_DATA_EXISTED_EVENT_ID, "inventory.transaction.exist.eventId");
             }
             Locale locale = Locale.ENGLISH;
             List<UUID> skuIds = events.stream()
@@ -123,19 +133,26 @@ public class InventoryServiceImpl implements InventoryService {
                 .lockInventoryBySkuId(skuIds)
                 .stream()
                 .collect(Collectors.toMap(
-                        Inventory::getProductSkuId,
-                        Function.identity(),
-                        (a,b) -> a)
-                );
-            // Map<UUID, WareHouse> invenWhActive = inventoryMap.values().stream().filter(i -> i.getWareHouse().getStatus().equals(WareHouseStatusEnum.ACTIVE)).collect(Collectors.toMap(Inventory::getId, i -> i.getWareHouse(), (a,b) -> a));
+                    Inventory::getProductSkuId,
+                    Function.identity(),
+                    (a, b) -> a
+                ));
+            
             WareHouse defaultWareHouse = this.wareHouseRepository.findFirstByStatusOrderByCreatedAtDesc(WareHouseStatusEnum.ACTIVE);
+            if (defaultWareHouse == null) {
+                throw new ServiceException(
+                    EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_STATUS,
+                    "ware.house.notExisted.status.active"
+                );
+            }
+            
             List<Inventory> inventoriesToSave = new ArrayList<>();
             List<InventoryTransaction> transactionsToSave = new ArrayList<>();
             for (ProductApprovedEvent event : events) {
                 UUID skuId = event.getProductSkuId();
-
                 Inventory inventory = inventoryMap.get(skuId);
                 boolean isNewInventory = inventory == null;
+
                 WareHouse wareHouse;
                 if (isNewInventory) {
                     wareHouse = defaultWareHouse;
@@ -148,8 +165,10 @@ public class InventoryServiceImpl implements InventoryService {
                     }
                     wareHouse = inventory.getWareHouse();
                 }
+
                 int before = 0;
                 int after = 0;
+                
                 if (isNewInventory) {
                     before = 0;
                     after = event.getQuantityAvailable();
@@ -209,6 +228,7 @@ public class InventoryServiceImpl implements InventoryService {
             if(!transactionsToSave.isEmpty()){
                 this.inventoryTransactionRepository.saveAll(transactionsToSave);
             }
+            return skuIds;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -218,11 +238,13 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public InventoryResponse createInventory(InventoryRequest inventory) {
         log.info("INVENTORY-SERVICE: [createInventory] Start create inventory");
         try {
-            return this.upSertInventory(new Inventory(),inventory);
+            InventoryResponse inventoryResponse = this.upSertInventory(inventory, true);
+            this.updateInventoryCache(inventoryResponse);
+            return inventoryResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -232,54 +254,82 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public InventoryResponse updateInventory(InventoryRequest inventory) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'updateInventory'");
+        log.info("INVENTORY-SERVICE: [createInventory] Start create inventory");
+        try {
+            InventoryResponse inventoryResponse = this.upSertInventory(inventory, false);
+            this.updateInventoryCache(inventoryResponse);
+            return inventoryResponse;
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [createInventory] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public InventoryResponse getInventoryById(UUID id) {
+    // @Transactional(readOnly = true)
+    public InventoryResponse getInventoryById(UUID id, Long version) {
         try {
-            Inventory inventory = this.inventoryRepository.findById(id).orElseThrow(
-                () -> new ServiceException(
-                    EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_ID,
-                    "inventory.not.found.id",
-                    Map.of("id", id)
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, InventoryResponse.class, () ->
+                this.inventoryRepository.findById(id)
+                    .map((i) -> {
+                        CompletableFuture<ApiResponse<ProductResponse>> productFuture = (i.getProductId() != null)
+                            ? AsyncUtils.fetchAsyncWThread(() -> this.productClient.getInternalProductByProductId(i.getProductId(), version), virtualExecutor)
+                            : CompletableFuture.completedFuture(null);
+                        CompletableFuture<InventoryResponse> inventoryFuture = AsyncUtils.fetchAsyncWThread(() -> this.inventoryMapper.toDto(i), virtualExecutor);
+                        
+                        try {
+                            CompletableFuture.allOf(
+                                productFuture, 
+                                inventoryFuture
+                            ).join();
+                        } catch (CompletionException e) {
+                            if (e.getCause() instanceof ServiceException serviceException) {
+                                throw serviceException;
+                            }
+                            throw e;
+                        }
+                        InventoryResponse inventoryResponse = inventoryFuture.join();
+                        ProductResponse productResponse = productFuture.join().getData();
+
+                        InnerProductSkuResponse foundSku = null;
+                        if (productResponse != null && productResponse.getProductSkus() != null) {
+                            inventoryResponse.setProductSku(productResponse.getProductSkus().stream()
+                                .filter(p -> i.getProductSkuId().equals(p.getId()))
+                                .findFirst()
+                                .map(p -> InnerProductSkuResponse.builder()
+                                    .id(p.getId())
+                                    .sku(p.getSku())
+                                    .price(p.getPrice())
+                                    .tempStock(p.getTempStock())
+                                    .build())
+                                .orElse(null)
+                            );
+                        }
+
+                        if (productResponse != null) {
+                            inventoryResponse.setProduct(InnerProductResponse.builder()
+                            .id(productResponse.getId())
+                            .name(productResponse.getName())
+                            .build());
+                        }
+
+                        inventoryResponse.setVersion(System.currentTimeMillis());
+                        return inventoryResponse;
+                    })
+                    .orElseThrow(
+                        () -> new ServiceException(
+                            EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_ID,
+                            "inventory.not.found.id",
+                            Map.of("id", id)
                 )
+                    )
             );
-
-            ApiResponse<ProductResponse> productFuture = this.productClient.getInternalProductByProductId(inventory.getProductId());
-
-            ProductResponse productResponse = productFuture.getData();
-            
-            InnerProductSkuResponse foundSku = null;
-            if (productResponse != null && productResponse.getProductSkus() != null) {
-                foundSku = productResponse.getProductSkus().stream()
-                    .filter(p -> inventory.getProductSkuId().equals(p.getId()))
-                    .findFirst()
-                    .orElse(null);
-            }
-
-            InventoryResponse inventoryResponse = this.inventoryMapper.toDto(inventory);
-            
-            if (productResponse != null) {
-                inventoryResponse.setProduct(InnerProductResponse.builder()
-                .id(productResponse.getId())
-                .name(productResponse.getName())
-                .build());
-            }
-
-            if (foundSku != null) {
-                inventoryResponse.setProductSku(InnerProductSkuResponse.builder()
-                .id(foundSku.getId())
-                .sku(foundSku.getSku())
-                .price(foundSku.getPrice())
-                .stock(foundSku.getStock())
-                .build());
-            }
-
-            return inventoryResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -289,7 +339,7 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // @Transactional(readOnly = true)
     public PaginationResponse<List<InventoryResponse>> getAllInventories(SearchRequest request) {
         try {
             SearchOption searchOption = request.getSearchOption();
@@ -329,7 +379,7 @@ public class InventoryServiceImpl implements InventoryService {
                                 .id(p.getId())
                                 .sku(p.getSku())
                                 .price(p.getPrice())
-                                .stock(p.getTempStock())
+                                .tempStock(p.getTempStock())
                                 .build()
                             );
                             i.setProduct(
@@ -482,40 +532,138 @@ public class InventoryServiceImpl implements InventoryService {
         }
     }
     
-    private InventoryResponse upSertInventory(Inventory inventory, InventoryRequest inventoryRequest){
+    private InventoryResponse upSertInventory(InventoryRequest inventoryRequest, boolean isCreate){
         try {
-            boolean isCreate = inventory.getId().equals(null);
             UserInsideToken currentUser = SecurityUtils.getCurrentUserId().orElseThrow(
                 () -> new ServiceException(EnumError.INVENTORY_USER_INVALID_ACCESS_TOKEN, "auth.accessToken.invalid")
             );
-            WareHouse wareHouse = this.wareHouseRepository.findById(inventory.getWareHouse().getId()).orElseThrow(
-                () -> new ServiceException(EnumError.INVENTORY_WARE_HOUSE_ERR_NOT_FOUND_ID, "ware.house.not.found.id", Map.of("wareHouseId", inventoryRequest.getWarehouse().getId()))
+            CompletableFuture<WareHouse> wareHouseFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.wareHouseService.fetchWareHouse(inventoryRequest.getWareHouse().getId()), 
+                virtualExecutor
             );
             CompletableFuture<Void> userFuture = (currentUser.getId() != null)
-                ? AsyncUtils.fetchAsync(() -> identityClient.validateInternalUserById(currentUser.getId(), true))
+                ? AsyncUtils.fetchVoidWThread(() -> identityClient.validateInternalUserById(currentUser.getId(), true, inventoryRequest.getVersion()), virtualExecutor)
                 : CompletableFuture.completedFuture(null);
             
-            CompletableFuture<Void> productFuture = (inventory.getProductId() != null)
-                ? AsyncUtils.fetchAsync(() -> productClient.validateInternalProductById(inventory.getProductId(), inventory.getProductSkuId()))
+            CompletableFuture<Void> productValidationFuture = (inventoryRequest.getProductId() != null)
+                ? AsyncUtils.fetchVoidWThread(
+                    () -> productClient.validateInternalProductById(
+                        inventoryRequest.getProductId(), 
+                        inventoryRequest.getProductSkuId()
+                    ),
+                    virtualExecutor
+                )
                 : CompletableFuture.completedFuture(null);
             
-            CompletableFuture<Void> approvalHistoryFuture = (inventory.getProductId() != null)
-                ? AsyncUtils.fetchAsync(() -> productClient.validateInternalApprovalHistoryByRequestId(inventory.getProductId()))
+            CompletableFuture<Void> approvalValidationFuture = (inventoryRequest.getProductId() != null)
+                ? AsyncUtils.fetchVoidWThread(
+                    () -> productClient.validateInternalApprovalHistoryByRequestId(
+                        inventoryRequest.getProductId()
+                    ),
+                    virtualExecutor
+                )
                 : CompletableFuture.completedFuture(null);
             
+            CompletableFuture<Void> duplicateCheckFuture = AsyncUtils.fetchVoidWThread(
+                () -> this.checkExistedInventory(
+                    inventoryRequest.getProductId(), 
+                    inventoryRequest.getProductSkuId(), 
+                    inventoryRequest.getWareHouse().getId(), 
+                    inventoryRequest.getId()
+                ), virtualExecutor);
+            CompletableFuture<Inventory> inventoryFuture;
+            CompletableFuture<InventoryTransaction> inventoryTranFuture;
+            if(isCreate){
+                inventoryFuture = CompletableFuture.completedFuture(
+                    new Inventory()
+                );
+                inventoryTranFuture = CompletableFuture.completedFuture(
+                    new InventoryTransaction()
+                );
+            } else {
+                inventoryFuture = AsyncUtils.fetchAsyncWThread(
+                    () -> inventoryRepository.lockInventoryById(inventoryRequest.getId())
+                    .orElseThrow(
+                        () -> new ServiceException(
+                            EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_ID,
+                            "inventory.not.found.id",
+                            Map.of("id", inventoryRequest.getId())
+                        )
+                    )
+                    , virtualExecutor);
+                
+                inventoryTranFuture = AsyncUtils.fetchAsyncWThread(
+                    () -> inventoryTransactionRepository.findFirstByProductSkuIdAndReferenceIdOrderByCreatedAtDesc(
+                        inventoryRequest.getProductSkuId(),
+                        inventoryRequest.getProductId()
+                    )
+                    .orElseThrow(
+                        () -> new ServiceException(
+                            EnumError.INVENTORY_INVENTORY_TRANSACTION_ERR_NOT_FOUND_PRODUCT_ID,
+                            "inventory.transaction.not.found.productId",
+                            Map.of("productSkuId", inventoryRequest.getProductSkuId())
+                        )
+                    )
+                    , virtualExecutor);
+            }
             try {
-                CompletableFuture.allOf(userFuture, productFuture, approvalHistoryFuture).join();
+                CompletableFuture.allOf(
+                    userFuture, 
+                    productValidationFuture, 
+                    approvalValidationFuture, 
+                    wareHouseFuture, 
+                    duplicateCheckFuture, 
+                    inventoryFuture,
+                    inventoryTranFuture
+                ).join();
             } catch (CompletionException e) {
                 if (e.getCause() instanceof ServiceException serviceException) {
                     throw serviceException;
                 }
                 throw e;
             }
+            WareHouse wareHouse = wareHouseFuture.join();
+            Inventory inventory = inventoryFuture.join();
+            InventoryTransaction inventoryTransaction = inventoryTranFuture.join();
             
-            this.checkExistedInventory(inventoryRequest.getProductId(), inventoryRequest.getProductSkuId(), inventoryRequest.getWarehouse().getId(), inventoryRequest.getId());
-            
-            return null;
-            
+            inventory.setWareHouse(wareHouse);
+            inventory.setProductId(inventoryRequest.getProductId());
+            inventory.setProductSkuId(inventoryRequest.getProductSkuId());
+            inventory.setQuantityAvailable(inventoryRequest.getQuantityAvailable());
+            inventory.setQuantityReserved(inventoryRequest.getQuantityReserved());
+            inventory.setQuantitySold(inventoryRequest.getQuantitySold());
+            inventory.setActivated(true);
+
+            Integer afterAvailableQuantity = inventoryRequest.getQuantityAvailable();
+            Integer beforeAvailableQuantity = 0;
+            String note;
+            if (isCreate) {
+                note = String.format("Order products: %s (Available +%d)", inventoryRequest.getProductSkuId(), inventoryRequest.getQuantityAvailable());
+            } else {
+                note = String.format("Update Inventory data: %s (Available +%d)", inventoryRequest.getProductSkuId(), inventoryRequest.getQuantityAvailable());
+                afterAvailableQuantity += inventoryTransaction.getAfterQuantity();
+                beforeAvailableQuantity = inventoryTransaction.getAfterQuantity();
+            }
+
+            InventoryTransactionTypeEnum tType = isCreate
+            ? InventoryTransactionTypeEnum.IMPORT 
+            : InventoryTransactionTypeEnum.ADJUSTMENT;
+
+            inventoryTransaction.setActivated(true);
+            inventoryTransaction.setNote(note);
+            inventoryTransaction.setReferenceId(inventoryRequest.getProductId());
+            inventoryTransaction.setReferenceType(InventoryTransactionReferenceTypeEnum.INVENTORY);
+            inventoryTransaction.setType(tType);
+            inventoryTransaction.setAfterQuantity(afterAvailableQuantity);
+            inventoryTransaction.setBeforeQuantity(beforeAvailableQuantity);
+            inventoryTransaction.setQuantityChange(Math.abs(inventoryRequest.getQuantityAvailable()));
+            inventoryTransaction.setProductSkuId(inventoryRequest.getProductSkuId());
+            inventoryTransaction.setEventId(UUID.randomUUID());
+            inventoryTransaction.setWareHouse(wareHouse);
+
+            this.inventoryTransactionRepository.save(inventoryTransaction);
+            Inventory savedInventory = this.inventoryRepository.save(inventory);
+            return inventoryMapper.toDto(savedInventory);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -527,7 +675,7 @@ public class InventoryServiceImpl implements InventoryService {
     private void checkExistedInventory(UUID productId, UUID productSkuId, UUID wareHouseId, UUID excludedId){
         try {
             Optional<Inventory> optional;
-            if(excludedId.equals(null)){
+            if(excludedId == null){
                 optional = this.inventoryRepository.findDuplicateForCreate(productId,productSkuId,wareHouseId);
             } else {
                 optional = this.inventoryRepository.findDuplicateForUpdate(productId,productSkuId,wareHouseId,excludedId);
@@ -554,6 +702,33 @@ public class InventoryServiceImpl implements InventoryService {
                     "inventory.quantityAvailable.notFormat",
                     Map.of("sku", skuId)
             );
+        }
+    }
+
+    private String getCacheKey(UUID id){
+        return this.inventoryServiceCacheProperties.createCacheKey(
+            this.inventoryServiceCacheProperties.getKeys().getInventoryInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(UUID id){
+        return this.inventoryServiceCacheProperties.createLockKey(
+            this.inventoryServiceCacheProperties.getKeys().getInventoryInfo(),
+            id
+        );
+    }
+
+    private void updateInventoryCache(InventoryResponse inventoryResponse) {
+        try {
+            inventoryResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(inventoryResponse.getId());
+            cacheProvider.put(cacheKey, inventoryResponse);
+            
+            log.info("INVENTORY-SERVICE: Updated cache for inventory ID: {}", inventoryResponse.getId());
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [updateInventoryCache] Error updating cache: {}", e.getMessage(), e);
         }
     }
 
