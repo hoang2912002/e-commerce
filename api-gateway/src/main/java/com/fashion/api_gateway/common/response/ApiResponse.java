@@ -20,7 +20,7 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class ApiResponse<T> {
-    boolean success;
+    Boolean success;
     Integer code;
     String message;
     T data;
