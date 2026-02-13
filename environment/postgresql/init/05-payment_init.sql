@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS payments (
     amount DECIMAL(19, 2) NOT NULL,
     status VARCHAR(50) CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED')),
     order_id UUID NOT NULL,
+    order_code VARCHAR(50) NOT NULL,
     payment_method_id BIGINT,
     activated BOOLEAN DEFAULT TRUE,
     paid_at TIMESTAMP,
@@ -37,12 +38,13 @@ CREATE TABLE IF NOT EXISTS payments (
     updated_by VARCHAR(50),
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    PRIMARY KEY (id, created_at), -- Partition key on created_at for time-based partitioning
+    PRIMARY KEY (id, created_at),
     CONSTRAINT fk_payment_method FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id)
 ) PARTITION BY RANGE (created_at);
 
 -- Index for optimization
 CREATE INDEX idx_payments_order_id ON payments(order_id);
+CREATE INDEX idx_payments_created_at ON payments(created_at);
 
 -- Comment
 COMMENT ON COLUMN payments.status IS 'Save status of Payment including: PENDING, SUCCESS, FAILED';
@@ -55,6 +57,7 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
     raw_response TEXT,
     note TEXT,
     payment_id UUID NOT NULL,
+    payment_created_at TIMESTAMP NOT NULL,
     event_id UUID NOT NULL,
     
     -- Audit fields
@@ -64,8 +67,13 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id, created_at),
-    CONSTRAINT fk_transaction_payment FOREIGN KEY (payment_id, created_at) REFERENCES payments (id, created_at) ON DELETE CASCADE
+    CONSTRAINT fk_transaction_payment FOREIGN KEY (payment_id, payment_created_at) REFERENCES payments (id, created_at) ON DELETE CASCADE
+    -- CONSTRAINT fk_transaction_payment FOREIGN KEY (payment_id) REFERENCES payments (id) ON DELETE CASCADE
 ) PARTITION BY RANGE (created_at);
+
+-- Index for optimization
+CREATE INDEX idx_payment_transactions_payment_id ON payment_transactions(payment_id);
+CREATE INDEX idx_payment_transactions_created_at ON payment_transactions(created_at);
 
 -- Comment
 COMMENT ON COLUMN payment_transactions.status IS 'Save status of Payment including: PENDING, SUCCESS, FAILED';
