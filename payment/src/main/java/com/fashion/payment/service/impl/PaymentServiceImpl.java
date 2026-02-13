@@ -1,11 +1,17 @@
-package com.fashion.payment.service.impls;
+package com.fashion.payment.service.impl;
 
 import java.lang.reflect.Field;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+
+import javax.swing.Spring;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -18,6 +24,8 @@ import com.fashion.payment.common.enums.EnumError;
 import com.fashion.payment.common.enums.PaymentEnum;
 import com.fashion.payment.common.enums.PaymentMethodEnum;
 import com.fashion.payment.common.response.ApiResponse;
+import com.fashion.payment.common.util.AsyncUtils;
+import com.fashion.payment.common.util.FormatTime;
 import com.fashion.payment.common.util.PageableUtils;
 import com.fashion.payment.common.util.SpecificationUtils;
 import com.fashion.payment.dto.request.PaymentRequest;
@@ -29,6 +37,7 @@ import com.fashion.payment.dto.response.PaginationResponse;
 import com.fashion.payment.dto.response.PaymentMethodResponse;
 import com.fashion.payment.dto.response.PaymentResponse;
 import com.fashion.payment.dto.response.PaymentResponse.InnerInternalPayment;
+import com.fashion.payment.dto.response.internal.InventoryResponse;
 import com.fashion.payment.dto.response.internal.OrderResponse;
 import com.fashion.payment.entity.Payment;
 import com.fashion.payment.entity.PaymentMethod;
@@ -38,17 +47,20 @@ import com.fashion.payment.factory.PaymentProcessorFactory;
 import com.fashion.payment.integration.OrderClient;
 import com.fashion.payment.mapper.PaymentMapper;
 import com.fashion.payment.properties.PaymentCodProperties;
+import com.fashion.payment.properties.cache.PaymentServiceCacheProperties;
 import com.fashion.payment.repository.PaymentMethodRepository;
 import com.fashion.payment.repository.PaymentRepository;
 import com.fashion.payment.repository.PaymentTransactionRepository;
 import com.fashion.payment.service.PaymentMethodService;
 import com.fashion.payment.service.PaymentService;
+import com.fashion.payment.service.provider.CacheProvider;
 import com.fashion.payment.service.strategy.PaymentStrategy;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+import net.bytebuddy.agent.builder.AgentBuilder.InitializationStrategy.SelfInjection.Split;
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -62,13 +74,18 @@ public class PaymentServiceImpl implements PaymentService{
     PaymentCodProperties paymentCodProperties;
     PaymentTransactionRepository paymentTransactionRepository;
     PaymentMethodService paymentMethodService;
+    PaymentServiceCacheProperties paymentServiceCacheProperties;
+    Executor virtualExecutor;
+    CacheProvider cacheProvider;
 
     @Override
     @Transactional(rollbackFor = ServiceException.class)
     public PaymentResponse createPayment(PaymentRequest request) {
         log.info("PAYMENT-SERVICE: [createPayment] Start create payment");
         try {
-            return this.upSertPayment(request, UUID.randomUUID(), false);
+            PaymentResponse paymentResponse = this.savePayment(request, UUID.randomUUID(), false);
+            this.updatePaymentCache(paymentResponse);
+            return paymentResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -81,7 +98,9 @@ public class PaymentServiceImpl implements PaymentService{
     public PaymentResponse updatePayment(PaymentRequest request) {
         log.info("PAYMENT-SERVICE: [updatePayment] Start update payment");
         try {
-            return this.upSertPayment(request, UUID.randomUUID(), false);
+            PaymentResponse paymentResponse = this.savePayment(request, UUID.randomUUID(), false);
+            this.updatePaymentCache(paymentResponse);
+            return paymentResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -90,13 +109,24 @@ public class PaymentServiceImpl implements PaymentService{
         }
     }
     @Override
-    @Transactional(readOnly = true)
-    public PaymentResponse getPaymentById(UUID id) {
+    public PaymentResponse getPaymentById(UUID id, String date, Long version) {
         try {
-            Payment payment = this.paymentRepository.findById(id).orElseThrow(
-                () -> new ServiceException(EnumError.PAYMENT_PAYMENT_ERR_NOT_FOUND_ID, "payment.not.found.id", Map.of("id", id))
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, PaymentResponse.class, 
+                () -> {
+                    Instant[] range = FormatTime.getMonthRange(date);
+                    Instant start = range[0];
+                    Instant end = range[1];
+                    return this.paymentRepository.findByIdInPartition(id,start, end)
+                    .map(payment -> {
+                        PaymentResponse paymentResponse = this.paymentMapper.toDto(payment);
+                        paymentResponse.setVersion(System.currentTimeMillis());
+                        return paymentResponse;
+                    })
+                    .orElse(null);
+                }
             );
-            return this.paymentMapper.toDto(payment);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -145,7 +175,7 @@ public class PaymentServiceImpl implements PaymentService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public void upSertPayment(InnerInternalPayment request, UUID eventId) {
         try {
             if(!this.checkExistedDataPayment(request)) return;
@@ -163,7 +193,7 @@ public class PaymentServiceImpl implements PaymentService{
                 .orderId(request.getOrderId())
                 .paymentMethod(pMethodRequest)
                 .build();
-            this.upSertPayment(paymentRequest,eventId,true);
+            this.savePayment(paymentRequest,eventId,true);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -192,39 +222,73 @@ public class PaymentServiceImpl implements PaymentService{
             throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
-    private PaymentResponse upSertPayment(PaymentRequest request, UUID eventId, boolean skipCheckOrder) {
+    private PaymentResponse savePayment(PaymentRequest request, UUID eventId, boolean skipCheckOrder) {
         try {
-            Payment payment;
             boolean isUpdate = request.getId() != null;
 
+            // Extract partition range
+            Instant createdAt = Instant.now();
+            String orderDate = request.getOrderCode().substring(0, 8);
+            Instant[] range = FormatTime.getMonthRange(orderDate);
+            Instant start = range[0];
+            Instant end = range[1];
+
+            CompletableFuture<Optional<Payment>> paymentFuture;
             if (isUpdate) {
-                payment = this.paymentRepository.lockPaymentById(request.getId()).orElseThrow(
-                    () -> new ServiceException(EnumError.PAYMENT_PAYMENT_ERR_NOT_FOUND_ID, "payment.not.found.id", Map.of("id", request.getId()))
-                );
-                
-                if (List.of(PaymentEnum.FAILED, PaymentEnum.SUCCESS).contains(payment.getStatus())) {
-                    throw new ServiceException(EnumError.PAYMENT_PAYMENT_STATUS_NOT_PENDING_CANNOT_UPDATE, "payment.status.cannot.update.payment", Map.of("id", request.getId()));
-                }
+                paymentFuture = AsyncUtils.fetchAsyncWThread(
+                    () -> this.paymentRepository.lockPaymentById(request.getId(), start, end), virtualExecutor);
             } else {
-                payment = new Payment();
-                payment.setPaymentTransactions(new ArrayList<>());
-                payment.setStatus(PaymentEnum.PENDING);
+                paymentFuture = CompletableFuture.supplyAsync(() -> Optional.of(new Payment()));
             }
-            this.checkExistedPayment(request.getOrderId(), request.getId());
-            OrderResponse orderResponse = null;
+            CompletableFuture<Void> isExistedPayFuture = AsyncUtils.fetchVoidWThread(
+                () -> this.checkExistedPayment(request.getOrderId(), request.getId(), start, end), virtualExecutor);
+            
+            CompletableFuture<PaymentMethod> paymentMethFuture = AsyncUtils.fetchAsyncWThread(
+                () -> this.paymentMethodService.getPaymentMethodByIdOrCode(request.getPaymentMethod().getId(), request.getPaymentMethod().getCode()), virtualExecutor);
+            
+            CompletableFuture<ApiResponse<OrderResponse>> orderFuture = CompletableFuture.completedFuture(new ApiResponse<>());
+            
             if(!skipCheckOrder){
-                ApiResponse<OrderResponse> apiRes = this.orderClient.getInternalOrderById(request.getOrderId());
-                orderResponse = apiRes.getData();
+                orderFuture = AsyncUtils.fetchAsyncWThread(() -> this.orderClient.getInternalOrderById(request.getOrderId(), request.getVersion()), virtualExecutor);
             }
-            PaymentMethod paymentMethod = this.paymentMethodService.getPaymentMethodByIdOrCode(request.getPaymentMethod().getId(), request.getPaymentMethod().getCode());
-            if(paymentMethod.getStatus() != PaymentMethodEnum.ACTIVE){
+
+            try {
+                CompletableFuture.allOf(paymentFuture,isExistedPayFuture,paymentMethFuture,orderFuture).join();
+            } catch (CompletionException e) {
+                if (e.getCause() instanceof ServiceException serviceException) {
+                    throw serviceException;
+                }
+                throw e;
+            }
+
+            Payment payment = paymentFuture.join().orElseThrow(
+                () -> new ServiceException(EnumError.PAYMENT_PAYMENT_ERR_NOT_FOUND_ID, "payment.not.found.id", Map.of("id", request.getId()))
+            );
+            isExistedPayFuture.join();
+            PaymentMethod paymentMethod = paymentMethFuture.join();
+            OrderResponse orderResponse = orderFuture.join().getData();
+
+            if(isUpdate){
+                if (List.of(PaymentEnum.FAILED, PaymentEnum.SUCCESS).contains(payment.getStatus()))
+                    throw new ServiceException(EnumError.PAYMENT_PAYMENT_STATUS_NOT_PENDING_CANNOT_UPDATE, "payment.status.cannot.update.payment", Map.of("id", request.getId()));
+
+            } else{
+                payment.setStatus(PaymentEnum.PENDING);
+                payment.setId(UUID.randomUUID());
+                payment.setCreatedAt(createdAt);
+            }
+            
+            if(paymentMethod.getStatus() != PaymentMethodEnum.ACTIVE)
                 throw new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_STATUS_NOT_MATCHING, "payment.method.status.not.support.current");
-            }
 
             payment.setActivated(true);
             payment.setPaymentMethod(paymentMethod);
             payment.setAmount(orderResponse != null ? orderResponse.getFinalPrice() : request.getAmount()); 
             payment.setOrderId(orderResponse != null ? orderResponse.getId() : request.getOrderId());
+            payment.setOrderCode(request.getOrderCode());
+
+            Payment savedPayment = paymentRepository.save(payment);
+            paymentRepository.flush(); 
 
             String action = isUpdate ? "UPDATE" : "INIT";
             String transactionId = String.join("_", paymentMethod.getCode().toUpperCase(), action, eventId.toString());
@@ -234,17 +298,19 @@ public class PaymentServiceImpl implements PaymentService{
                 .transactionId(transactionId)
                 .status(PaymentEnum.PENDING)
                 .payment(payment) 
+                .paymentId(savedPayment.getId())
+                .paymentCreatedAt(savedPayment.getCreatedAt())
                 .note(isUpdate ? "User changed payment method" : "Initial payment request")
+                .createdAt(createdAt)
                 .build();
-
-            payment.getPaymentTransactions().add(paymentTransaction);
-
-            this.paymentRepository.save(payment);
-
-            PaymentResponse paymentResponse = this.paymentMapper.toDto(payment);
+            
+            PaymentTransaction saveTransaction = this.paymentTransactionRepository.save(paymentTransaction);
+            PaymentResponse paymentResponse;
             if (!paymentMethod.getCode().equalsIgnoreCase(this.paymentCodProperties.getPartnerCode())) {
                 PaymentStrategy paymentStrategy = this.paymentProcessorFactory.getProcessor(paymentMethod.getCode().toLowerCase());
-                paymentResponse = paymentStrategy.process(payment, eventId);
+                paymentResponse = paymentStrategy.process(savedPayment, eventId);
+            } else {
+                paymentResponse = this.paymentMapper.toDto(savedPayment);
             }
 
             return paymentResponse;
@@ -252,23 +318,23 @@ public class PaymentServiceImpl implements PaymentService{
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
-            log.error("PAYMENT-SERVICE: [upSertPayment] Error: {}", e.getMessage(), e);
+            log.error("PAYMENT-SERVICE: [savePayment] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
 
-    private void checkExistedPayment(UUID orderId, UUID excludedId){
+    private void checkExistedPayment(UUID orderId, UUID excludedId, Instant start, Instant end){
         try {
             Optional<Payment> optional;
             if(excludedId == null){
-                optional = this.paymentRepository.findDuplicateForCreate(orderId);
+                optional = this.paymentRepository.findDuplicateForCreate(orderId, start, end);
             } else {
-                optional = this.paymentRepository.findDuplicateForUpdate(orderId, excludedId);
+                optional = this.paymentRepository.findDuplicateForUpdate(orderId, excludedId, start, end);
             }
             optional.ifPresent(p -> {
                 throw new ServiceException(
                     EnumError.PAYMENT_PAYMENT_ERR_NOT_FOUND_ORDER_ID, 
-                    "payment.not.found.orderId",
+                    "payment.exist.orderId",
                     Map.of("orderId", orderId
                 ));
             });
@@ -277,6 +343,33 @@ public class PaymentServiceImpl implements PaymentService{
         } catch (Exception e) {
             log.error("PRODUCT-SERVICE: [checkExistedPayment] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    private String getCacheKey(UUID id){
+        return this.paymentServiceCacheProperties.createCacheKey(
+            this.paymentServiceCacheProperties.getKeys().getPaymentInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(UUID id){
+        return this.paymentServiceCacheProperties.createLockKey(
+            this.paymentServiceCacheProperties.getKeys().getPaymentInfo(),
+            id
+        );
+    }
+
+    private void updatePaymentCache(PaymentResponse paymentResponse) {
+        try {
+            paymentResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(paymentResponse.getId());
+            cacheProvider.put(cacheKey, paymentResponse);
+            
+            log.info("PAYMENT-SERVICE: Updated cache for payment ID: {}", paymentResponse.getId());
+        } catch (Exception e) {
+            log.error("PAYMENT-SERVICE: [updatePaymentCache] Error updating cache: {}", e.getMessage(), e);
         }
     }
 }

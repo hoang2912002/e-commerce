@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.payment.common.annotation.ApiMessageResponse;
@@ -62,9 +63,11 @@ public class PaymentController {
     @GetMapping("/{id}")
     @ApiMessageResponse("payment.success.get.single")
     public ResponseEntity<PaymentResponse> getPaymentById(
-        @PathVariable("id") UUID id
+        @PathVariable("id") UUID id,
+        @RequestParam("date") String date,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.ok(this.paymentService.getPaymentById(id));
+        return ResponseEntity.ok(this.paymentService.getPaymentById(id, date, version));
     } 
     
     @GetMapping("")

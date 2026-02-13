@@ -16,7 +16,7 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PaymentMethodResponse {
+public class PaymentMethodResponse extends VersionResponse {
     Long id;
     String code;
     String name;

@@ -38,5 +38,5 @@ public interface PaymentMethodRepository extends JpaRepository<PaymentMethod,Lon
     Optional<PaymentMethod> lockPaymentMethodById(@Param("id") Long id);
 
 
-    Optional<PaymentMethod> findByCode(String code);
+    Optional<PaymentMethod> findByCodeOrId(String code, Long id);
 }

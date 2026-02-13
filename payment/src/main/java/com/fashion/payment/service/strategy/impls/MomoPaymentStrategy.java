@@ -1,6 +1,9 @@
 package com.fashion.payment.service.strategy.impls;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -47,13 +50,17 @@ public class MomoPaymentStrategy implements PaymentStrategy {
         );
         PaymentTransaction successTrans = PaymentTransaction.builder()
             .payment(payment)
+            .paymentId(payment.getId())
             .eventId(eventId)
             .transactionId("MOMO_SUCCESS_" + eventId) // Giả lập mã GD thành công
             .status(PaymentEnum.SUCCESS)
             .rawResponse(mockRedirectUrl)
+            .createdAt(Instant.now())
+            .paymentCreatedAt(payment.getCreatedAt())
             .note("Force Success after creating link")
             .build();
-        this.paymentTransactionRepository.save(successTrans);
+        
+        PaymentTransaction paymentTransaction = this.paymentTransactionRepository.saveAndFlush(successTrans);
         payment.setStatus(PaymentEnum.SUCCESS);
         payment.setPaidAt(LocalDateTime.now());
         return this.paymentMapper.toDto(payment);

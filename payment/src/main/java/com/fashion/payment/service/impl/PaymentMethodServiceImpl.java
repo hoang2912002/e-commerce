@@ -1,10 +1,11 @@
-package com.fashion.payment.service.impls;
+package com.fashion.payment.service.impl;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -22,11 +23,14 @@ import com.fashion.payment.dto.request.search.SearchOption;
 import com.fashion.payment.dto.request.search.SearchRequest;
 import com.fashion.payment.dto.response.PaginationResponse;
 import com.fashion.payment.dto.response.PaymentMethodResponse;
+import com.fashion.payment.dto.response.PaymentResponse;
 import com.fashion.payment.entity.PaymentMethod;
 import com.fashion.payment.exception.ServiceException;
 import com.fashion.payment.mapper.PaymentMethodMapper;
+import com.fashion.payment.properties.cache.PaymentServiceCacheProperties;
 import com.fashion.payment.repository.PaymentMethodRepository;
 import com.fashion.payment.service.PaymentMethodService;
+import com.fashion.payment.service.provider.CacheProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -40,9 +44,11 @@ import lombok.extern.slf4j.Slf4j;
 public class PaymentMethodServiceImpl implements PaymentMethodService{
     PaymentMethodRepository paymentMethodRepository;
     PaymentMethodMapper paymentMethodMapper;
+    PaymentServiceCacheProperties paymentServiceCacheProperties;
+    CacheProvider cacheProvider;
     
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public PaymentMethodResponse createPaymentMethod(PaymentMethodRequest request) {
         log.info("PAYMENT-SERVICE: [createPaymentMethod] Start create payment method");
         try {
@@ -51,7 +57,9 @@ public class PaymentMethodServiceImpl implements PaymentMethodService{
             paymentMethod.setCode(request.getCode().toLowerCase());
             paymentMethod.setStatus(PaymentMethodEnum.ACTIVE);
             paymentMethod.setActivated(true);
-            return paymentMethodMapper.toDto(this.paymentMethodRepository.save(paymentMethod));
+            PaymentMethodResponse paymentMethodResponse = paymentMethodMapper.toDto(this.paymentMethodRepository.save(paymentMethod));
+            this.updatePaymentMethodCache(paymentMethodResponse);
+            return paymentMethodResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -61,7 +69,7 @@ public class PaymentMethodServiceImpl implements PaymentMethodService{
     }
 
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
+    @Transactional(rollbackFor = ServiceException.class, timeout = 30)
     public PaymentMethodResponse updatePaymentMethod(PaymentMethodRequest request) {
         log.info("PAYMENT-SERVICE: [updatePaymentMethod] Start update payment method");
         try {
@@ -71,7 +79,9 @@ public class PaymentMethodServiceImpl implements PaymentMethodService{
             );
             this.paymentMethodMapper.toUpdate(paymentMethod, request);
             paymentMethod.setActivated(true);
-            return paymentMethodMapper.toDto(this.paymentMethodRepository.saveAndFlush(paymentMethod));
+            PaymentMethodResponse paymentMethodResponse = paymentMethodMapper.toDto(this.paymentMethodRepository.save(paymentMethod));
+            this.updatePaymentMethodCache(paymentMethodResponse);
+            return paymentMethodResponse;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -81,13 +91,20 @@ public class PaymentMethodServiceImpl implements PaymentMethodService{
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // @Transactional(readOnly = true)
     public PaymentMethodResponse getPaymentMethodById(Long id) {
         try {
-            PaymentMethod paymentMethod = this.paymentMethodRepository.findById(id).orElseThrow(
-                () -> new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_ERR_NOT_FOUND_ID,"payment.method.not.found.id", Map.of("id",id))
+            String cacheKey = this.getCacheKey(id);
+            String localKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, localKey, id, PaymentMethodResponse.class, 
+                () -> this.paymentMethodRepository.findById(id)
+                .map(p -> {
+                    PaymentMethodResponse paymentMethodResponse = this.paymentMethodMapper.toDto(p);
+                    paymentMethodResponse.setVersion(System.currentTimeMillis());
+                    return paymentMethodResponse;
+                })
+                .orElse(null)
             );
-            return paymentMethodMapper.toDto(paymentMethod);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -97,7 +114,7 @@ public class PaymentMethodServiceImpl implements PaymentMethodService{
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // @Transactional(readOnly = true)
     public PaginationResponse<List<PaymentMethodResponse>> getAllPaymentMethod(SearchRequest request) {
         try {
             SearchOption searchOption = request.getSearchOption();
@@ -138,14 +155,22 @@ public class PaymentMethodServiceImpl implements PaymentMethodService{
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Cacheable(value = "paymentmethod", key = "#paymentMethodId", unless = "#result == null")
     public PaymentMethod getPaymentMethodByIdOrCode(Long id, String code) {
         try {
             boolean excludedCode = code != null;
-            PaymentMethod paymentMethod = (excludedCode ? 
-                this.paymentMethodRepository.findByCode(code.toLowerCase()) :
-                this.paymentMethodRepository.findById(id)
-            ).orElseThrow(
+            // PaymentMethod paymentMethod = (excludedCode ? 
+            //     this.paymentMethodRepository.findByCodeOrId(code.toLowerCase(), id) :
+            //     this.paymentMethodRepository.findById(id)
+            // ).orElseThrow(
+            //     () -> {
+            //         return excludedCode ? 
+            //             new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_DATA_EXISTED_CODE, "payment.not.found.code", Map.of("paymentMethodCode", code)) :
+            //             new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_ERR_NOT_FOUND_ID, "payment.not.found.id", Map.of("paymentMethodId", id))
+            //         ;
+            //     }
+            // );
+            PaymentMethod paymentMethod = this.paymentMethodRepository.findByCodeOrId(code.toLowerCase(), id).orElseThrow(
                 () -> {
                     return excludedCode ? 
                         new ServiceException(EnumError.PAYMENT_PAYMENT_METHOD_DATA_EXISTED_CODE, "payment.not.found.code", Map.of("paymentMethodCode", code)) :
@@ -191,6 +216,33 @@ public class PaymentMethodServiceImpl implements PaymentMethodService{
         } catch (Exception e) {
             log.error("PRODUCT-SERVICE: [checkExistedPaymentMethod] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    private String getCacheKey(Long id){
+        return this.paymentServiceCacheProperties.createCacheKey(
+            this.paymentServiceCacheProperties.getKeys().getPaymentMethodInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(Long id){
+        return this.paymentServiceCacheProperties.createLockKey(
+            this.paymentServiceCacheProperties.getKeys().getPaymentMethodInfo(),
+            id
+        );
+    }
+
+    private void updatePaymentMethodCache(PaymentMethodResponse paymentMethodResponse) {
+        try {
+            paymentMethodResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(paymentMethodResponse.getId());
+            cacheProvider.put(cacheKey, paymentMethodResponse);
+            
+            log.info("PAYMENT-SERVICE: Updated cache for payment method ID: {}", paymentMethodResponse.getId());
+        } catch (Exception e) {
+            log.error("PAYMENT-SERVICE: [updatePaymentMethodCache] Error updating cache: {}", e.getMessage(), e);
         }
     }
 }

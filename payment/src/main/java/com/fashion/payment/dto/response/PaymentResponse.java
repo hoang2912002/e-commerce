@@ -23,7 +23,7 @@ import lombok.experimental.FieldDefaults;
 @Data
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PaymentResponse {
+public class PaymentResponse extends VersionResponse{
     UUID id;
     BigDecimal amount;
     @Enumerated(EnumType.STRING)

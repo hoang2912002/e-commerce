@@ -32,11 +32,13 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
+import net.bytebuddy.dynamic.TypeResolutionStrategy.Lazy;
 
 @Entity
 @Table(name = "payments",
     indexes = {
-        @Index(name = "idx_payment_order_id", columnList = "order_id")
+        @Index(name = "idx_payments_order_id", columnList = "order_id"),
+        @Index(name = "idx_payments_created_at", columnList = "created_at"),
     }
 )
 @Data
@@ -45,7 +47,7 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @IdClass(PaymentId.class) // Primary key class when using composite keys (partition)
-public class Payment extends AbstractAuditingEntity<UUID>{
+public class Payment extends AbstractAuditingPartitionEntity<UUID>{
     @Id
     @GeneratedValue(generator = "UUID")
     // @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
@@ -57,6 +59,10 @@ public class Payment extends AbstractAuditingEntity<UUID>{
         return this.id;
     }
 
+    @Id
+    @Column(name = "created_at", nullable = false, updatable = false)
+    Instant createdAt;
+
     @Column(name = "amount", nullable = false)
     BigDecimal amount;
 
@@ -67,6 +73,9 @@ public class Payment extends AbstractAuditingEntity<UUID>{
 
     @Column(name = "order_id", unique = true, nullable = false)
     UUID orderId;
+    
+    @Column(name = "order_code", unique = true, nullable = false)
+    String orderCode;
 
     @Column(name = "paid_at")
     LocalDateTime paidAt;
@@ -78,6 +87,6 @@ public class Payment extends AbstractAuditingEntity<UUID>{
     @JoinColumn(name = "payment_method_id")
     PaymentMethod paymentMethod;
 
-    @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "payment")
     List<PaymentTransaction> paymentTransactions;
 }

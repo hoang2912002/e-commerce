@@ -32,9 +32,29 @@ spring:
     name: payment-service
     language-default: en
   jpa:
+    properties:
+      hibernate:
+        jdbc.batch_size: 50 # Gom 50 record rồi xử lý
+        order_inserts: true # Sắp xếp để gom nhóm tốt hơn
+        order_updates: true
+        batch_versioned_data: true
     hibernate:
       ddl-auto: validate
     show-sql: true
+  threads:
+    virtual:
+      enabled: true
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6319
+      password: ""
+      lettuce:
+       pool:
+         max-active: 10
+         max-idle: 5
+         min-idle: 5
+      connect-timeout: 30000
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/e_payment_service
     username: postgres
@@ -49,6 +69,9 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer #value
       properties:
         spring.json.trusted.packages: "*"
+    listener:
+      missing-topics-fatal: false
+      ack-mode: manual_immediate
     # config producer
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -92,3 +115,11 @@ vnpay:
   end-point: https://test-payment.vnpay.vn/v2/gateway/api/create
 cod:
   partner-code: COD
+app:
+  cache:
+    payment:
+      prefix: "fsh:pay" # Payment
+      lock: "lock:fsh:pay" # Payment Lock
+      keys:
+        payment-info: "payI" # Payment Information
+        payment-method-info: "paymI"

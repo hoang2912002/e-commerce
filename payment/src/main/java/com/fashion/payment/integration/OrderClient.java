@@ -18,7 +18,7 @@ import com.fashion.payment.integration.config.FeignClientConfigError;
 public interface OrderClient {
     //--------------------Products--------------------
     @GetMapping(value = "/orders/internal/get-internal-order-and-check-approval-by-id")
-    ApiResponse<OrderResponse> getInternalOrderById(@RequestParam UUID orderId);
+    ApiResponse<OrderResponse> getInternalOrderById(@RequestParam UUID orderId, @RequestParam Long version);
 
     
 }
