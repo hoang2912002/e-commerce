@@ -18,5 +18,6 @@ public class InventoryServiceCacheProperties extends BaseCacheProperties<Invento
         private String inventoryInfo;
         private String wareHouseInfo;
         private String inventoryTransactionInfo;
+        private String inventoryInfoOrder;
     }
 }

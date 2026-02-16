@@ -107,7 +107,14 @@ spring:
         inventory-created-success: com.inventory.inventory.created.success
         inventory-creation-failed: com.inventory.inventory.creation.failed
       order:
-        order-created-success: com.order.order.created.success
+        order-created-success-payment: com.order.order.created.success.payment
+        order-created-success-shipping: com.order.order.created.success.shipping
+        order-created-success-inventory: com.order.order.created.success.inventory
+        order-created-success-promotion: com.order.order.created.success.promotion
+        order-created-success-payment-failed: com.order.order.created.success.payment.failed
+        order-created-success-shipping-failed: com.order.order.created.success.shipping.failed
+        order-created-success-inventory-failed: com.order.order.created.success.inventory.failed
+        order-created-success-promotion-failed: com.order.order.created.success.promotion.failed
 jwt:
   base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
   access-token-in-seconds: 86400
@@ -135,3 +142,4 @@ app:
         inventory-info: "invI" # Inventory Information
         ware-house-info: "whI"
         inventory-transaction-info: "invTI" # Inventory Transaction Information
+        inventory-info-order: "invIO" # Inventory Information with product Sku key

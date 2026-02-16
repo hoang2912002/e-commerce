@@ -1,7 +1,12 @@
 package com.fashion.inventory.service.provider;
 
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import org.springframework.stereotype.Component;
@@ -76,6 +81,93 @@ public class CacheProvider {
             }
         }
         return null;
+    }
+
+    public <I, T extends VersionResponse> Map<I, T> getDataResponseBatch(
+        Set<I> ids,
+        Function<I, String> keyGenerator,
+        Function<Set<I>, String> batchLockKeyGenerator,
+        Long version,
+        Class<T> clazz,
+        Function<Set<I>, Map<I, T>> dbBatchFallback
+    ) {
+        Map<I, T> result = new ConcurrentHashMap<>();
+        Set<I> missingIds = new HashSet<>();
+        
+        // 1. Check local cache first
+        for (I id : ids) {
+            String cacheKey = keyGenerator.apply(id);
+            Object rawData = localCache.getIfPresent(cacheKey);
+            
+            if (rawData instanceof Optional && ((Optional<?>) rawData).isEmpty()) {
+                continue; // Skip null markers
+            }
+            
+            if (rawData != null) {
+                T localData = clazz.cast(rawData);
+                if (isDataFresh(localData, version)) {
+                    result.put(id, localData);
+                    continue;
+                }
+            }
+            missingIds.add(id);
+        }
+        
+        if (missingIds.isEmpty()) {
+            return result;
+        }
+        
+        // 2. Batch lock for missing IDs
+        String batchLockKey = batchLockKeyGenerator.apply(missingIds);
+        RedisDistributedLocker lock = redisDistributedService.getLock(batchLockKey);
+        
+        try {
+            if (!lock.tryLock(1, 5, TimeUnit.SECONDS)) {
+                // Another thread is loading, try Redis once more
+                for (I id : missingIds) {
+                    String cacheKey = keyGenerator.apply(id);
+                    T redisData = redisService.getObject(cacheKey, clazz);
+                    if (redisData != null && isDataFresh(redisData, version)) {
+                        result.put(id, redisData);
+                        localCache.put(cacheKey, redisData);
+                    }
+                }
+                return result;
+            }
+            
+            // 3. Double-check Redis after acquiring lock
+            Set<I> stillMissing = new HashSet<>();
+            for (I id : missingIds) {
+                String cacheKey = keyGenerator.apply(id);
+                T redisData = redisService.getObject(cacheKey, clazz);
+                if (redisData != null && isDataFresh(redisData, version)) {
+                    result.put(id, redisData);
+                    localCache.put(cacheKey, redisData);
+                } else {
+                    stillMissing.add(id);
+                }
+            }
+            
+            // 4. Fetch from DB and cache SYNCHRONOUSLY
+            if (!stillMissing.isEmpty()) {
+                Map<I, T> dbData = dbBatchFallback.apply(stillMissing);
+                for (Map.Entry<I, T> entry : dbData.entrySet()) {
+                    String cacheKey = keyGenerator.apply(entry.getKey());
+                    this.put(cacheKey, entry.getValue());
+                    result.put(entry.getKey(), entry.getValue());
+                }
+            }
+            
+            return result;
+            
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return result;
+        } finally {
+            if (lock.isLocked() && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
     }
 
     private <T extends VersionResponse> boolean isDataFresh(T data, Long requiredVersion) {

@@ -22,7 +22,7 @@ public interface InventoryMapper extends EntityMapper<InventoryResponse, Invento
     InventoryMapper INSTANCE = Mappers.getMapper(InventoryMapper.class);
 
     @Named("toDto")
-    @Mapping(target = "warehouse", source = "wareHouse", qualifiedByName = "toInnerEntity")
+    @Mapping(target = "wareHouse", source = "wareHouse", qualifiedByName = "toInnerEntity")
     InventoryResponse toDto(Inventory entity);
     List<InventoryResponse> toDto(List<Inventory> entity);
 

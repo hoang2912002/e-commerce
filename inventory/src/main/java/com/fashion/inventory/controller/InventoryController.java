@@ -94,9 +94,10 @@ public class InventoryController {
     @PostMapping("/internal/validate-internal-inventory-and-check-quantity-available")
     @ApiMessageResponse("inventory.success.internal.get.single")
     public ResponseEntity<Void> checkInternalQuantityAvailableForOrder(
-        @RequestBody Collection<InnerOrderDetail_FromOrderRequest> inventory
+        @RequestBody Collection<InnerOrderDetail_FromOrderRequest> inventory,
+        @RequestParam Long version
     ) {
-        this.inventoryService.checkInternalQuantityAvailableForOrder(inventory);
+        this.inventoryService.checkInternalQuantityAvailableForOrder(inventory, version);
         return ResponseEntity.noContent().build();
     }
 }

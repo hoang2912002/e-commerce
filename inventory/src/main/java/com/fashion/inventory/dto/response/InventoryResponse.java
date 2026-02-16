@@ -27,7 +27,7 @@ public class InventoryResponse extends VersionResponse{
     Integer quantitySold;
     UUID productId;
     UUID productSkuId;
-    InnerWareHouseResponse warehouse;
+    InnerWareHouseResponse wareHouse;
     InnerProductResponse product;
     InnerProductSkuResponse productSku;
     Boolean activated;

@@ -39,5 +39,8 @@ public interface InventoryService {
         Collection<ReturnAvailableQuantity> requests,
         UUID eventId
     );
-    void checkInternalQuantityAvailableForOrder(Collection<InnerOrderDetail_FromOrderRequest> inventory);
+    void checkInternalQuantityAvailableForOrder(Collection<InnerOrderDetail_FromOrderRequest> inventory, Long version);
+    void warmingInventory();
+    void warmingInventoryOrder();
+    void updateQuantityInventory(UUID productSkuId, UUID productId,Integer quantityAvailable, Integer quantityReserved, UUID wareHouseId);
 }

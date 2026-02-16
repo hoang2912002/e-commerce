@@ -2,6 +2,7 @@ package com.fashion.inventory.service.impl;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,16 +15,23 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import org.checkerframework.checker.units.qual.t;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -73,6 +81,8 @@ import com.fashion.inventory.service.provider.CacheProvider;
 import com.fashion.inventory.service.provider.WareHouseUpSertOrderErrorProvider;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.NoResultException;
+import jakarta.persistence.Query;
 import jakarta.persistence.criteria.CriteriaBuilder.In;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -95,6 +105,9 @@ public class InventoryServiceImpl implements InventoryService {
     final WareHouseService wareHouseService;
     final InventoryServiceCacheProperties inventoryServiceCacheProperties;
     final CacheProvider cacheProvider;
+    final DefaultRedisScript<Long> scriptDecrementInventory;
+    final DefaultRedisScript<Long> scriptIncreaseInventory;
+    final StringRedisTemplate stringRedisTemplate;
     @Value("${role.admin}")
     String roleAdmin;
     
@@ -415,43 +428,53 @@ public class InventoryServiceImpl implements InventoryService {
     }
     
     @Override
-    @Transactional(readOnly = true)
-    public void checkInternalQuantityAvailableForOrder(Collection<InnerOrderDetail_FromOrderRequest> requests) {
+    // @Transactional(readOnly = true)
+    public void checkInternalQuantityAvailableForOrder(Collection<InnerOrderDetail_FromOrderRequest> requests, Long version) {
         try {
             Map<UUID, Integer> mapRequest = requests.stream()
                 .collect(Collectors.toMap(
-                    i -> i.getProductSku().getId(), 
-                    InnerOrderDetail_FromOrderRequest::getQuantity, 
+                    i -> i.getProductSku().getId(),
+                    InnerOrderDetail_FromOrderRequest::getQuantity,
                     Integer::sum
                 ));
-
-            List<Inventory> inventories = this.inventoryRepository.findAllByProductSkuIdIn(mapRequest.keySet());
             
-            // Finding SKU not existed in Ware house record
-            if (inventories.size() != mapRequest.size()) {
-                // Getting exact SKU name which lack in Warehouse to throw error
-                Set<UUID> foundSkuIds = inventories.stream().map(Inventory::getProductSkuId).collect(Collectors.toSet());
-                List<UUID> missingSkuIds = mapRequest.keySet().stream().filter(id -> !foundSkuIds.contains(id)).toList();
-                throw new ServiceException(EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_PRODUCT_SKU_ID, "inventory.not.found.productSkuId" + missingSkuIds);
+            Map<UUID, InventoryResponse> allInventories = cacheProvider.getDataResponseBatch(
+                mapRequest.keySet(),
+                this::getCacheOrderKey,
+                this::generateBatchLockKey,
+                version,
+                InventoryResponse.class,
+                this::fetchInventoriesFromDB
+            );
+
+            if (allInventories.size() != mapRequest.size()) {
+                Set<UUID> foundSkuIds = allInventories.keySet();
+                List<UUID> notFoundSkuIds = mapRequest.keySet().stream()
+                    .filter(id -> !foundSkuIds.contains(id))
+                    .toList();
+                
+                throw new ServiceException(
+                    EnumError.INVENTORY_INVENTORY_ERR_NOT_FOUND_PRODUCT_SKU_ID,
+                    "inventory.not.found.productSkuId",
+                    Map.of("missingSkuIds", notFoundSkuIds)
+                );
             }
 
-            // 4. Validate
-            for (Inventory inventory : inventories) {
-                Integer requestedQty = mapRequest.get(inventory.getProductSkuId());
-                Integer stockAvailable = inventory.getQuantityAvailable();
-
-                if (requestedQty <= 0 || requestedQty > stockAvailable) {
+            for (Map.Entry<UUID, InventoryResponse> entry : allInventories.entrySet()) {
+                UUID skuId = entry.getKey();
+                InventoryResponse inventory = entry.getValue();
+                Integer requestedQty = mapRequest.get(skuId);
+                Integer availableQty = inventory.getQuantityAvailable();
+                
+                if (requestedQty <= 0 || requestedQty > availableQty) {
                     throw new ServiceException(
-                        EnumError.INVENTORY_INVENTORY_INVALID_QUANTITY_AVAILABLE, 
-                        "inventory.quantityAvailable.stock.out", 
-                        Map.of("skuId", inventory.getProductSkuId(), "available", stockAvailable)
-                    );
-                }
-
-                if (inventory.getWareHouse() != null && inventory.getWareHouse().getStatus() != null) {
-                    inventory.getWareHouse().getStatus().validateOrderAbility(
-                        wareHouseUpSertOrderErrorProvider, 
-                        Map.of("productSkuId", inventory.getProductSkuId())
+                        EnumError.INVENTORY_INVENTORY_INVALID_QUANTITY_AVAILABLE,
+                        "inventory.quantityAvailable.stock.out",
+                        Map.of(
+                            "skuId", skuId,
+                            "requested", requestedQty,
+                            "available", availableQty
+                        )
                     );
                 }
             }
@@ -478,56 +501,130 @@ public class InventoryServiceImpl implements InventoryService {
                 log.warn("INVENTORY-SERVICE: Event {} already processed. Skipping.", eventId);
                 return; 
             }
-            Set<InventoryTransaction> savedTransactions = new HashSet<>();
-            WareHouse activeWh = this.wareHouseRepository.findFirstByStatusOrderByCreatedAtDesc(WareHouseStatusEnum.ACTIVE);
             for (ReturnAvailableQuantity item : request) {
-                Inventory currentInventory = (item.isNegative() 
-                ? inventoryRepository.decreaseQuantityAndIncreaseReservedAtomic(item.getProductId(), item.getProductSkuId(), item.getCirculationCount())
-                : inventoryRepository.increaseQuantityAndDecreaseReservedAtomic(item.getProductId(), item.getProductSkuId(), item.getCirculationCount()))
-                .orElseThrow(() -> new ServiceException(
-                    EnumError.INVENTORY_INVENTORY_INVALID_QUANTITY_AVAILABLE, 
-                    "inventory.quantityAvailable.not.enough.for.atomic.update"
-                ));
-                
-                String note = "";
-                Integer afterAvailableQuantity = currentInventory.getQuantityAvailable();
-                Integer beforeAvailableQuantity;
+                Integer deductionQty = item.getCirculationCount();
+                UUID productSkuId = item.getProductSkuId();
+                UUID productId = item.getProductId();
+                String cacheKey = this.getCacheOrderKey(productSkuId);
+                try {
+                    Long result = 0L;
+                    if(item.isNegative()){
+                        // decrease
+                        result = stringRedisTemplate.execute(
+                            scriptDecrementInventory,
+                            Collections.singletonList(cacheKey),
+                            String.valueOf(deductionQty)
+                        );
+                    } else {
+                        result = stringRedisTemplate.execute(
+                            scriptIncreaseInventory,
+                            Collections.singletonList(cacheKey),
+                            String.valueOf(deductionQty)
+                        );
+                    }
 
-                if (item.isNegative()) {
-                    // Reserved increase (Decrease Available)
-                    beforeAvailableQuantity = afterAvailableQuantity + item.getCirculationCount();
-                    note = String.format("Order products: %s (Reserved +%d, Available -%d)", item.getProductSkuId(), item.getCirculationCount(), item.getCirculationCount());
-                } else {
-                    // Reserved decrease (Increase Available)
-                    beforeAvailableQuantity = afterAvailableQuantity - item.getCirculationCount();
-                    note = String.format("Return order products: %s (Reserved -%d, Available +%d)", item.getProductSkuId(), item.getCirculationCount(), item.getCirculationCount());
+                    if (result != null && result >= 0) {
+                        log.info("INVENTORY-SERVICE: [changeQuantityUse]: Deduction inventory quantity deduction: {}, with Product sku: {}", deductionQty, productSkuId);
+                    }
+                } catch (Exception e) {
+                    throw e;
                 }
-
-                InventoryTransactionTypeEnum tType = item.isNegative() 
-                ? InventoryTransactionTypeEnum.ORDER_RESERVE 
-                : InventoryTransactionTypeEnum.ORDER_RELEASE;
-
-                savedTransactions.add(InventoryTransaction.builder()
-                    .activated(true)
-                    .note(note)
-                    .referenceId(item.getProductId())
-                    .referenceType(InventoryTransactionReferenceTypeEnum.ORDER)
-                    .type(tType)
-                    .afterQuantity(afterAvailableQuantity) 
-                    .beforeQuantity(beforeAvailableQuantity)
-                    .quantityChange(Math.abs(item.getCirculationCount()))
-                    .productSkuId(item.getProductSkuId())
-                    .eventId(eventId)
-                    .wareHouse(activeWh)
-                    .build()
-                );
-
             }
-            this.inventoryTransactionRepository.saveAll(savedTransactions);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
             log.error("INVENTORY-SERVICE: [changeQuantityUse] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional(readOnly = true, timeout = 30)
+    public void warmingInventory(){
+        try {
+            List<InventoryResponse> inventoryResponses = this.inventoryMapper.toDto(this.inventoryRepository.findTop100ByOrderByCreatedAtDesc());
+            for (InventoryResponse inventoryResponse : inventoryResponses) {
+                this.updateInventoryCache(inventoryResponse);
+            }
+            log.info("INVENTORY-SERVICE: Warmed cache for {} products", inventoryResponses.size());
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [warmingInventory] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+    
+    @Override
+    @EventListener(ApplicationReadyEvent.class)
+    @Transactional(readOnly = true, timeout = 30)
+    public void warmingInventoryOrder(){
+        try {
+            List<InventoryResponse> inventoryResponses = this.inventoryMapper.toDto(this.inventoryRepository.findTop100ByOrderByCreatedAtDesc());
+            for (InventoryResponse inventoryResponse : inventoryResponses) {
+                this.updateInventoryOrderCache(inventoryResponse);
+            }
+            log.info("INVENTORY-SERVICE: Warmed cache order for {} products", inventoryResponses.size());
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [warmingInventoryOrder] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = ServiceException.class)
+    public void updateQuantityInventory(UUID productSkuId, UUID productId, Integer quantityAvailable, Integer quantityReserved, UUID wareHouseId) {
+        try {
+            String sql = "WITH old_data AS (SELECT quantity_available, quantity_reserved FROM inventories WHERE product_sku_id = :sId) " +
+                        "UPDATE inventories i SET quantity_available = :newAvai, quantity_reserved = :newRes FROM old_data " +
+                        "WHERE i.product_sku_id = :sId " +
+                        "RETURNING old_data.quantity_available, old_data.quantity_reserved";
+            
+            Query query = entityManager.createNativeQuery(sql)
+                    .setParameter("sId", productSkuId)
+                    .setParameter("newAvai", quantityAvailable)
+                    .setParameter("newRes", quantityReserved);
+
+            Object[] result = (Object[]) query.getSingleResult();
+            
+            WareHouse wareHouse = this.wareHouseRepository.findById(wareHouseId).orElse(null);
+            
+            Integer oldAvailableInDb = (Integer) result[0];
+            Integer diffAvailable = quantityAvailable - oldAvailableInDb;
+
+            if(diffAvailable != 0) {
+                InventoryTransactionTypeEnum tType = diffAvailable < 0 
+                        ? InventoryTransactionTypeEnum.ORDER_RESERVE 
+                        : InventoryTransactionTypeEnum.ORDER_RELEASE;
+    
+                // 5. Lưu Transaction Log
+                InventoryTransaction transaction = InventoryTransaction.builder()
+                        .activated(true)
+                        .note(String.format("Order products: %s (Available change: %d)", productSkuId, diffAvailable))
+                        .referenceId(productId)
+                        .referenceType(InventoryTransactionReferenceTypeEnum.ORDER)
+                        .type(tType)
+                        .afterQuantity(quantityAvailable) 
+                        .beforeQuantity(oldAvailableInDb)
+                        .quantityChange(Math.abs(diffAvailable))
+                        .productSkuId(productSkuId)
+                        .eventId(UUID.randomUUID())
+                        .wareHouse(wareHouse)
+                        .build();
+    
+                this.inventoryTransactionRepository.save(transaction);
+                entityManager.flush();
+                Inventory inventory = this.inventoryRepository.findByProductIdAndProductSkuId(productId, productSkuId).orElse(null);
+                if (inventory != null) {
+                    this.updateInventoryOrderCache(this.inventoryMapper.toDto(inventory));
+                } else {
+                    log.warn("INVENTORY-SERVICE: Could not find inventory to update cache for SKU: {}", productSkuId);
+                }
+
+            }
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.INVENTORY_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
@@ -718,6 +815,27 @@ public class InventoryServiceImpl implements InventoryService {
             id
         );
     }
+    
+    private String getCacheOrderKey(UUID skuId){
+        return this.inventoryServiceCacheProperties.createCacheKey(
+            this.inventoryServiceCacheProperties.getKeys().getInventoryInfoOrder(),
+            skuId.toString()
+        );
+    }
+    
+    private String generateBatchLockKey(Set<UUID> skuIds){
+        return this.inventoryServiceCacheProperties.createCacheKey(
+            this.inventoryServiceCacheProperties.getKeys().getInventoryInfoOrder(),
+            skuIds.stream().sorted().map(UUID::toString).collect(Collectors.joining(":")).hashCode()
+        );
+    }
+
+    private String getLockOrderKey(UUID id){
+        return this.inventoryServiceCacheProperties.createLockKey(
+            this.inventoryServiceCacheProperties.getKeys().getInventoryInfoOrder(),
+            id
+        );
+    }
 
     private void updateInventoryCache(InventoryResponse inventoryResponse) {
         try {
@@ -731,5 +849,34 @@ public class InventoryServiceImpl implements InventoryService {
             log.error("INVENTORY-SERVICE: [updateInventoryCache] Error updating cache: {}", e.getMessage(), e);
         }
     }
+    /**
+     * 
+     * @param inventoryResponse
+     * @return cache with product sku id key
+     */
+    private void updateInventoryOrderCache(InventoryResponse inventoryResponse) {
+        try {
+            inventoryResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheOrderKey(inventoryResponse.getProductSkuId());
+            cacheProvider.put(cacheKey, inventoryResponse);
+            
+            log.info("INVENTORY-SERVICE: Updated cache for inventory ID: {}", inventoryResponse.getId());
+        } catch (Exception e) {
+            log.error("INVENTORY-SERVICE: [updateInventoryOrderCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    }
 
+    private Map<UUID, InventoryResponse> fetchInventoriesFromDB(Set<UUID> skuIds) {
+        List<Inventory> inventories = inventoryRepository.findAllByProductSkuIdIn(skuIds);
+        
+        Map<UUID, InventoryResponse> result = new HashMap<>();
+        for (Inventory inventory : inventories) {
+            InventoryResponse response = inventoryMapper.toDto(inventory);
+            response.setVersion(System.currentTimeMillis());
+            result.put(inventory.getProductSkuId(), response);
+        }
+        
+        return result;
+    }
 }

@@ -89,4 +89,20 @@ public interface InventoryRepository extends JpaRepository<Inventory, UUID>, Jpa
         @Param("productSkuId") UUID productSkuId,
         @Param("quantity") Integer quantity
     );
+
+    List<Inventory> findTop100ByOrderByCreatedAtDesc();
+
+    @Query(value = "UPDATE inventories " +
+                "SET quantity_available = quantity_available + :quantity, " +
+                "quantity_reserved = quantity_reserved - :quantity " +
+                "WHERE product_id = :productId " +
+                "AND product_sku_id = :productSkuId " +
+                "AND quantity_reserved >= :quantity " +
+                "RETURNING *",
+        nativeQuery = true) // <-- PHẢI THÊM nativeQuery = true
+    Optional<Inventory> deductionQuantity(
+        @Param("productId") UUID productId,
+        @Param("productSkuId") UUID productSkuId,
+        @Param("quantity") Integer quantity
+    );
 }
