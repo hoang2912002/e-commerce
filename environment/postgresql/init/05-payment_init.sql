@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS payments (
     status VARCHAR(50) CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED')),
     order_id UUID NOT NULL,
     order_code VARCHAR(50) NOT NULL,
+    order_created_at TIMESTAMP NOT NULL,
     payment_method_id BIGINT,
     activated BOOLEAN DEFAULT TRUE,
     paid_at TIMESTAMP,
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS payments (
 
 -- Index for optimization
 CREATE INDEX idx_payments_order_id ON payments(order_id);
+CREATE INDEX idx_payments_order_created_at ON payments(order_created_at);
 CREATE INDEX idx_payments_created_at ON payments(created_at);
 
 -- Comment

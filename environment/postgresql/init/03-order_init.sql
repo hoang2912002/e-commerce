@@ -106,6 +106,7 @@ CREATE TABLE IF NOT EXISTS order_details (
     product_id UUID NOT NULL,
     product_sku_id UUID NOT NULL,
     order_id UUID,
+    order_created_at TIMESTAMP NOT NULL,
 
     -- Audit fields
     created_by VARCHAR(50),
@@ -114,7 +115,7 @@ CREATE TABLE IF NOT EXISTS order_details (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     PRIMARY KEY (id, created_at), -- Partition key on created_at for time-based partitioning
-    CONSTRAINT fk_detail_order FOREIGN KEY (order_id,created_at) REFERENCES orders (id,created_at) ON DELETE CASCADE
+    CONSTRAINT fk_detail_order FOREIGN KEY (order_id,order_created_at) REFERENCES orders (id,created_at) ON DELETE CASCADE
 ) PARTITION BY RANGE (created_at);
 
 CREATE INDEX idx_order_detail_order_id ON order_details(order_id);
@@ -125,10 +126,39 @@ CREATE INDEX idx_order_detail_created_at ON order_details(created_at);
 ALTER TABLE order_details ALTER COLUMN id TYPE BIGINT;
 ALTER TABLE order_details ALTER COLUMN id SET DEFAULT nextval('order_detail_seq');
 
--- 4. Table partitions for orders by month
+-- 4. Table: saga_state
+CREATE TABLE IF NOT EXISTS saga_states (
+    id UUID NOT NULL,
+    order_id UUID NOT NULL,
+    order_created_at TIMESTAMP NOT NULL,
+    order_code VARCHAR(50),
+    status VARCHAR(50) CHECK (status IN ('START', 'COMPLETED', 'FAILED')),
+    step VARCHAR(50) CHECK (step IN ('PAYMENT', 'SHIPPING', 'PROMOTION', 'INVENTORY')),
+    payload TEXT,
+
+    -- Audit fields
+    created_by VARCHAR(50),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(50),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id, created_at),
+    CONSTRAINT fk_saga_state FOREIGN KEY (order_id, order_created_at) REFERENCES orders (id, created_at) ON DELETE CASCADE
+) PARTITION BY RANGE (created_at);
+
+-- Index for optimization
+CREATE INDEX idx_saga_states_order_id ON saga_states(order_id);
+CREATE INDEX idx_saga_states_order_code ON saga_states(order_code);
+CREATE INDEX idx_saga_states_created_at ON saga_states(created_at);
+
+-- 5. Table partitions for orders by month
 CREATE TABLE orders_2026_02 PARTITION OF orders
     FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
 
--- 5. Table partitions for order_details by month
+-- 6. Table partitions for order_details by month
 CREATE TABLE order_details_2026_02 PARTITION OF order_details
+    FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
+
+-- 6. Table partitions for order_details by month
+CREATE TABLE saga_states_2026_02 PARTITION OF saga_states
     FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
