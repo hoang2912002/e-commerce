@@ -19,4 +19,6 @@ public interface ProductService {
     List<Product> findListProductById(List<UUID> ids);
     void validateInternalProductById(UUID id, UUID skuId);
     List<ProductResponse> getInternalProductByIdAndCheckApproval(InnerInternalProductRequest request);
+    void setCacheProduct(List<ProductResponse> productResponses);
+    Void warmProduct();
 }

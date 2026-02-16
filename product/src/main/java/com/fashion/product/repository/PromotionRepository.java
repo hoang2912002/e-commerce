@@ -1,5 +1,6 @@
 package com.fashion.product.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -10,6 +11,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.fashion.product.entity.Promotion;
 
@@ -62,4 +64,10 @@ public interface PromotionRepository extends JpaRepository<Promotion, UUID>, Jpa
     );
 
     Boolean existsByEventId(UUID eventId);
+
+    List<Promotion> findTop100ByOrderByCreatedAtDesc();
+
+    @Modifying
+    @Query("UPDATE Promotion p SET p.quantity = :quantity WHERE p.id = :id")
+    int updateQuantityAtomic(@Param("id") UUID id, @Param("quantity") Integer quantity);
 }

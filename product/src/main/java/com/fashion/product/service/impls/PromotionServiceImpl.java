@@ -19,10 +19,14 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +45,7 @@ import com.fashion.product.dto.response.CategoryResponse.InnerCategoryResponse;
 import com.fashion.product.dto.response.OptionValueResponse;
 import com.fashion.product.dto.response.ProductResponse.InnerProductResponse;
 import com.fashion.product.dto.response.PaginationResponse;
+import com.fashion.product.dto.response.ProductResponse;
 import com.fashion.product.dto.response.PromotionResponse;
 import com.fashion.product.dto.response.PromotionResponse.InnerPromotionResponse;
 import com.fashion.product.entity.Category;
@@ -53,6 +58,7 @@ import com.fashion.product.exception.ServiceException;
 import com.fashion.product.mapper.CategoryMapper;
 import com.fashion.product.mapper.ProductMapper;
 import com.fashion.product.mapper.PromotionMapper;
+import com.fashion.product.properties.cache.ProductServiceCacheProperties;
 import com.fashion.product.repository.ProductRepository;
 import com.fashion.product.repository.ProductSkuRepository;
 import com.fashion.product.repository.PromotionProductRepository;
@@ -60,6 +66,7 @@ import com.fashion.product.repository.PromotionRepository;
 import com.fashion.product.service.CategoryService;
 import com.fashion.product.service.ProductService;
 import com.fashion.product.service.PromotionService;
+import com.fashion.product.service.provider.CacheProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -78,7 +85,11 @@ public class PromotionServiceImpl implements PromotionService{
     CategoryMapper categoryMapper;
     ProductMapper productMapper;
     ProductSkuRepository productSkuRepository;
-
+    ProductServiceCacheProperties productServiceCacheProperties;
+    CacheProvider cacheProvider;
+    DefaultRedisScript<Long> scriptDecrementPromotion;
+    DefaultRedisScript<Long> scriptIncreasePromotion;
+    StringRedisTemplate stringRedisTemplate;
     @Override
     @Transactional(rollbackFor = ServiceException.class)
     public PromotionResponse createPromotion(
@@ -222,38 +233,42 @@ public class PromotionServiceImpl implements PromotionService{
 
     
     @Override
-    @Transactional(rollbackFor = ServiceException.class)
-    public void spinningQuantity(Map<UUID, Integer> productSkus, UUID eventId) {
+    // @Transactional(rollbackFor = ServiceException.class)
+    public void spinningQuantity(Map<UUID, Integer> promotions, UUID eventId) {
         try {
             if (this.promotionRepository.existsByEventId(eventId)) {
                 log.warn("PRODUCT-SERVICE: Event {} already processed. Skipping.", eventId);
                 return; 
             }
-            Map<UUID, ProductSku> skus = this.productSkuRepository.findAllByIdIn(productSkus.keySet()).stream().collect(Collectors.toMap(ProductSku::getId, Function.identity()));
-            for (Map.Entry<UUID, Integer> pSku : productSkus.entrySet()) {
-                ProductSku productSku = skus.getOrDefault(pSku.getKey(), null);
-                if(productSku != null){
-                    InnerPromotionResponse promotion = this.getInternalCorrespondingPromotionByProductId(productSku);
-                    int updatedRows;
-                    if(pSku.getValue() > 0){
-                        updatedRows = this.promotionRepository.increaseQuantityAtomic(
-                            promotion.getId(),
-                            Math.abs(pSku.getValue()),
-                            eventId
+            
+            for (Map.Entry<UUID, Integer> promotion : promotions.entrySet()) {
+                Integer deductionQty = promotion.getValue();
+                UUID promotionId = promotion.getKey();
+                String cacheKey = this.getCacheKey(promotionId);
+                try {
+                    Long result = 0L;
+                    if(deductionQty > 0){
+                        // restore
+                        result = stringRedisTemplate.execute(
+                            scriptDecrementPromotion,
+                            Collections.singletonList(cacheKey),
+                            String.valueOf(deductionQty)
                         );
                     } else {
-                        updatedRows = this.promotionRepository.decreaseQuantityAtomic(
-                            promotion.getId(),
-                            Math.abs(pSku.getValue()),
-                            eventId
+                        // decrease
+                        result = stringRedisTemplate.execute(
+                            scriptIncreasePromotion,
+                            Collections.singletonList(cacheKey),
+                            String.valueOf(deductionQty)
                         );
                     }
-                    if (updatedRows == 0) {
-                        throw new ServiceException(
-                            EnumError.PRODUCT_PROMOTION_INVALID_QUANTITY, 
-                            "promotion.quantity.stock.error.for.atomic.update"
-                        );
-                    }  
+    
+                    if (result != null && result >= 0) {
+                        // this.syncCouponToDatabase(id, newStock.intValue());
+                        log.info("PRODUCT-SERVICE: [spinningQuantity]: Deduction promotion quantity for {}. with: {}", promotionId, deductionQty);
+                    }
+                } catch (ServiceException e) {
+                    throw e;
                 }
             }
         } catch (ServiceException e) {
@@ -277,6 +292,43 @@ public class PromotionServiceImpl implements PromotionService{
             ));
         } catch (Exception e) {
             log.error("Error: {}", e.getMessage());
+            throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @EventListener(ApplicationReadyEvent.class)
+    public Void warmPromotion(){
+        log.info("PRODUCT-SERVICE: [warmPromotion] Starting cache warming...");
+        try {
+            List<Promotion> popularPromotions = this.promotionRepository.findTop100ByOrderByCreatedAtDesc();
+            List<PromotionResponse> promotionResponses = this.promotionMapper.toDto(popularPromotions);
+            for (PromotionResponse promotionResponse : promotionResponses) {
+                this.updatePromotionCache(promotionResponse);
+            }
+            log.info("PRODUCT-SERVICE: Warmed cache for {} promotions", popularPromotions.size());
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: Cache warming failed", e);
+        }
+        return null;
+    }
+
+    @Override
+    @Transactional
+    public void updateQuantityPromotion(UUID id, Integer quantity){
+        try {
+            int updatedRows = this.promotionRepository.updateQuantityAtomic(id, quantity);
+        
+            if (updatedRows > 0) {
+                Promotion promotion = this.promotionRepository.findById(id)
+                .orElseThrow(() -> new ServiceException(EnumError.PRODUCT_PROMOTION_ERR_NOT_FOUND_ID, "promotion.not.found.id"));
+
+                this.updatePromotionCache(this.promotionMapper.toDto(promotion));
+            }
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("PRODUCT-SERVICE: [updateQuantityPromotion] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
@@ -444,4 +496,39 @@ public class PromotionServiceImpl implements PromotionService{
 
         return discount;
     }
+
+    private String getCacheKey(UUID id){
+        return this.productServiceCacheProperties.createCacheKey(
+            this.productServiceCacheProperties.getKeys().getPromotionInfo(),
+            id
+        );
+    }
+    
+    private String generateBatchLockKey(Set<UUID> ids){
+        return this.productServiceCacheProperties.createCacheKey(
+            this.productServiceCacheProperties.getKeys().getPromotionInfo(),
+            ids.stream().sorted().map(UUID::toString).collect(Collectors.joining(":")).hashCode()
+        );
+    }
+    
+    private String getLockKey(UUID id){
+        return this.productServiceCacheProperties.createLockKey(
+            this.productServiceCacheProperties.getKeys().getPromotionInfo(),
+            id
+        );
+    }
+
+    private void updatePromotionCache(PromotionResponse promotionResponse) {
+        try {
+            promotionResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(promotionResponse.getId());
+            cacheProvider.put(cacheKey, promotionResponse);
+            
+            log.info("PRODUCT-SERVICE: Updated cache for promotion ID: {}", promotionResponse.getId());
+        } catch (Exception e) {
+            // Don't fail the operation if cache update fails
+            log.error("PRODUCT-SERVICE: [updatePromotionCache] Error updating cache: {}", e.getMessage(), e);
+        }
+    } 
 }

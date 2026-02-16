@@ -1,8 +1,10 @@
 package com.fashion.product.service.impls;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,13 +14,17 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -205,14 +211,8 @@ public class ProductServiceImpl implements ProductService{
     @Override
     public ProductResponse getProductById(UUID id, Long version) {
         try {
-            String cacheKey = this.productServiceCacheProperties.createCacheKey(
-                this.productServiceCacheProperties.getKeys().getProductInfo(),
-                id
-            );
-            String lockKey = this.productServiceCacheProperties.createLockKey(
-                this.productServiceCacheProperties.getKeys().getProductInfo(),
-                id
-            );
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
             return cacheProvider.getDataResponse(cacheKey, lockKey, version, ProductResponse.class, () -> 
                 productRepository.findById(id)
                     .map((p) -> {
@@ -264,51 +264,31 @@ public class ProductServiceImpl implements ProductService{
 
     
     @Override
-    @Transactional(readOnly = true)
     public List<ProductResponse> getInternalProductByIdAndCheckApproval(InnerInternalProductRequest request) {
         try {
             List<UUID> productSkuIdList = request.getProductSkuIdList();
             List<UUID> productIdList = request.getProductIdList();
-            List<Product> products = this.productRepository.findAllByIdIn(productIdList);
-            if(products.isEmpty()){
-                throw new ServiceException(EnumError.PRODUCT_PRODUCT_ERR_NOT_FOUND_ID, "product.not.found.id.in");
-            }
             
-            // Check approval product
-            this.approvalHistoryService.checkApprovalHistoryForUpSertOrder(products);
-
-            // Check product sku
-            List<ProductSku> targetSkus = products.stream()
-                .flatMap(p -> p.getProductSkus().stream())
-                .filter(sku -> productSkuIdList.contains(sku.getId()))
-                .toList();
-
-            if (targetSkus.size() != productSkuIdList.size()) {
-                throw new ServiceException(EnumError.PRODUCT_PRODUCT_SKU_ERR_NOT_FOUND_ID, "product.sku.not.found.id.in");
+            Map<UUID, ProductResponse> allProducts = cacheProvider.getDataResponseBatch(
+                new HashSet<>(productIdList),
+                this::getCacheKey,
+                this::generateBatchLockKey,
+                request.getVersion(),
+                ProductResponse.class,
+                (missingIds) -> fetchProductsFromDB(new ArrayList<>(missingIds), productIdList)
+            );
+          
+            if (allProducts.size() != productIdList.size()) {
+                throw new ServiceException(
+                    EnumError.PRODUCT_PRODUCT_ERR_NOT_FOUND_ID,
+                    "product.not.found.id.in"
+                );
             }
-
-            // Grouping SKU following Product
-            Map<UUID, List<ProductSku>> skuGroupedByProduct = targetSkus.stream()
-                .collect(Collectors.groupingBy(sku -> sku.getProduct().getId()));
-
-            // Get corresponding Promotion base on original product price
-            return skuGroupedByProduct.entrySet().stream().map(entry -> {
-                List<ProductSku> skus = entry.getValue();
-                Product product = skus.get(0).getProduct();
-                ProductResponse productRes = productMapper.toDto(product);
-
-                List<InnerProductSkuResponse> skuResponses = skus.stream().map(sku -> {
-                    InnerProductSkuResponse skuDto = productSkuMapper.toInnerEntity(sku);
-                    
-                    InnerPromotionResponse promotion = this.promotionService.getInternalCorrespondingPromotionByProductId(sku);
-                    skuDto.setPromotion(promotion);
-                    
-                    return skuDto;
-                }).toList();
-                productRes.setProductSkus(skuResponses); 
-                
-                return productRes;
-            }).toList();
+            // return allProducts.values().stream().collect(Collectors.toList());
+            return filterAndValidateSkus(
+                new ArrayList<>(allProducts.values()),
+                productSkuIdList
+            );
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -316,6 +296,46 @@ public class ProductServiceImpl implements ProductService{
             throw new ServiceException(EnumError.PRODUCT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
+
+    @Override
+    public void setCacheProduct(List<ProductResponse> productResponses){
+        for (ProductResponse productResponse : productResponses) {
+            this.updateProductCache(productResponse);
+        }
+    }
+
+    @Override
+    @EventListener(ApplicationReadyEvent.class)
+    public Void warmProduct() {
+        log.info("PRODUCT-SERVICE: [warmProduct] Starting cache warming...");
+        
+        try {
+            List<Product> popularProducts = productRepository.findTop100ByOrderByCreatedAtDesc();
+            List<ProductResponse> productResponses = new ArrayList<>();
+            for (Product product : popularProducts) {
+                ProductResponse response = productMapper.toDto(product);
+                
+                // Load SKUs with promotions
+                List<InnerProductSkuResponse> skuResponses = product.getProductSkus().stream()
+                    .map(sku -> {
+                        InnerProductSkuResponse skuDto = productSkuMapper.toInnerEntity(sku);
+                        InnerPromotionResponse promotion = 
+                            promotionService.getInternalCorrespondingPromotionByProductId(sku);
+                        skuDto.setPromotion(promotion);
+                        return skuDto;
+                    })
+                    .toList();
+                
+                response.setProductSkus(skuResponses);
+                this.updateProductCache(response);
+            }
+            log.info("PRODUCT: Warmed cache for {} products", popularProducts.size());
+        } catch (Exception e) {
+            log.error("PRODUCT: Cache warming failed", e);
+        }
+        return null;
+    }
+
     private ProductResponse upSertProduct(
         Product product, 
         List<InnerVariantRequest> variants, 
@@ -677,18 +697,32 @@ public class ProductServiceImpl implements ProductService{
         }
     }
 
+    private String getCacheKey(UUID id){
+        return this.productServiceCacheProperties.createCacheKey(
+            this.productServiceCacheProperties.getKeys().getProductInfo(),
+            id
+        );
+    }
+    
+    private String generateBatchLockKey(Set<UUID> ids){
+        return this.productServiceCacheProperties.createCacheKey(
+            this.productServiceCacheProperties.getKeys().getProductInfo(),
+            ids.stream().sorted().map(UUID::toString).collect(Collectors.joining(":")).hashCode()
+        );
+    }
+    
+    private String getLockKey(UUID id){
+        return this.productServiceCacheProperties.createLockKey(
+            this.productServiceCacheProperties.getKeys().getProductInfo(),
+            id
+        );
+    }
+
     private void updateProductCache(ProductResponse productResponse) {
         try {
-            // Set current timestamp as version
             productResponse.setVersion(System.currentTimeMillis());
             
-            // Create cache key
-            String cacheKey = this.productServiceCacheProperties.createCacheKey(
-                this.productServiceCacheProperties.getKeys().getProductInfo(),
-                productResponse.getId()
-            );
-            
-            // Update both local cache and Redis
+            String cacheKey = this.getCacheKey(productResponse.getId());
             cacheProvider.put(cacheKey, productResponse);
             
             log.info("PRODUCT-SERVICE: Updated cache for product ID: {}", productResponse.getId());
@@ -697,4 +731,90 @@ public class ProductServiceImpl implements ProductService{
             log.error("PRODUCT-SERVICE: [updateProductCache] Error updating cache: {}", e.getMessage(), e);
         }
     } 
+
+
+    private Map<UUID, ProductResponse> fetchProductsFromDB(
+        List<UUID> missingIds, 
+        List<UUID> allProductIds
+    ) {
+        List<Product> products = productRepository.findAllByIdIn(missingIds);
+        
+        if (products.isEmpty()) {
+            return new HashMap<>();
+        }
+        
+        approvalHistoryService.checkApprovalHistoryForUpSertOrder(products);
+        
+        Map<UUID, ProductResponse> result = new HashMap<>();
+        for (Product product : products) {
+            ProductResponse response = productMapper.toDto(product);
+            response.setVersion(System.currentTimeMillis());
+            
+            // Load SKUs with promotions
+            List<InnerProductSkuResponse> skuResponses = product.getProductSkus().stream()
+                .map(sku -> {
+                    InnerProductSkuResponse skuDto = productSkuMapper.toInnerEntity(sku);
+                    InnerPromotionResponse promotion = 
+                        promotionService.getInternalCorrespondingPromotionByProductId(sku);
+                    skuDto.setPromotion(promotion);
+                    return skuDto;
+                })
+                .toList();
+            
+            response.setProductSkus(skuResponses);
+            result.put(product.getId(), response);
+        }
+        
+        return result;
+    }
+
+    private List<ProductResponse> filterAndValidateSkus(
+            List<ProductResponse> products,
+            List<UUID> requestedSkuIds) {
+        
+        Set<UUID> requestedSkuSet = new HashSet<>(requestedSkuIds);
+        Set<UUID> foundSkuIds = new HashSet<>();
+
+        List<ProductResponse> result = products.stream()
+            .map(product -> {
+                List<InnerProductSkuResponse> filteredSkus = product.getProductSkus().stream()
+                    .filter(sku -> requestedSkuSet.contains(sku.getId()))
+                    .peek(sku -> foundSkuIds.add(sku.getId()))
+                    .toList();
+
+                // Clone product and set filtered SKUs
+                ProductResponse filtered = new ProductResponse();
+                filtered.setId(product.getId());
+                filtered.setName(product.getName());
+                filtered.setPrice(product.getPrice());
+                filtered.setThumbnail(product.getThumbnail());
+                filtered.setQuantity(product.getQuantity());
+                filtered.setDescription(product.getDescription());
+                filtered.setCategory(product.getCategory());
+                filtered.setShopManagement(product.getShopManagement());
+                filtered.setProductSkus(filteredSkus);
+                filtered.setVersion(product.getVersion());
+                filtered.setCreatedAt(product.getCreatedAt());                
+                filtered.setCreatedBy(product.getCreatedBy());                
+                filtered.setUpdatedAt(product.getUpdatedAt());                
+                filtered.setUpdatedBy(product.getUpdatedBy());                
+                return filtered;
+            })
+            .filter(product -> !product.getProductSkus().isEmpty())
+            .toList();
+
+        // Validate all requested SKUs are found
+        if (foundSkuIds.size() != requestedSkuIds.size()) {
+            Set<UUID> missingSkuIds = new HashSet<>(    );
+            missingSkuIds.removeAll(foundSkuIds);
+            
+            throw new ServiceException(
+                EnumError.PRODUCT_PRODUCT_SKU_ERR_NOT_FOUND_ID,
+                "product.sku.not.found.id.in",
+                Map.of("missingSkuIds", missingSkuIds)
+            );
+        }
+
+        return result;
+    }
 }

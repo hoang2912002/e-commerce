@@ -23,4 +23,6 @@ public interface PromotionService {
     Promotion lockPromotionById(UUID id);
     InnerPromotionResponse getInternalCorrespondingPromotionByProductId(ProductSku productSku);
     Map<UUID, InnerPromotionResponse> getBestPromotionsByProductIds(Collection<ProductSku> productSkus,UUID productIds);
+    Void warmPromotion();
+    void updateQuantityPromotion(UUID id, Integer quantity); // Only use for schedule cronjob
 }

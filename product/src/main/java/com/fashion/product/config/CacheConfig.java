@@ -21,15 +21,6 @@ import com.google.common.cache.CacheBuilder;
 
 @Configuration
 public class CacheConfig {
-    @Bean(name = "redisObjectMapper")
-    public ObjectMapper redisObjectMapper() {
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.registerModule(new JavaTimeModule());
-        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        // Quan trọng: Phải có cái này để nó hiểu cái Array ["class.name", {...}]
-        mapper.activateDefaultTyping(LaissezFaireSubTypeValidator.instance, ObjectMapper.DefaultTyping.NON_FINAL);
-        return mapper;
-    }
 
     @Bean
     public Cache<String, Object> guavaCache() {

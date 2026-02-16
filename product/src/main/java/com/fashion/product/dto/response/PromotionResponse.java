@@ -22,7 +22,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class PromotionResponse {
+public class PromotionResponse extends VersionResponse {
     UUID id;
     String code;
     String name;
