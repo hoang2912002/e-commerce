@@ -13,7 +13,7 @@ import com.fashion.order.dto.response.PaginationResponse;
 public interface OrderService {
     OrderResponse createOrder(OrderRequest order);
     OrderResponse updateOrder(OrderRequest order);
-    OrderResponse updateOrderStatus(UUID id, OrderEnum status, String note);
+    OrderResponse updateOrderStatus(UUID id, OrderEnum status, String note, Long version);
     OrderResponse getOrderById(UUID id);
     OrderResponse getOrderByCode(String code);
     PaginationResponse<List<OrderResponse>> getAllOrder(SearchRequest request);

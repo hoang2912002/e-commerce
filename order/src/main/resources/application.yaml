@@ -26,9 +26,30 @@ spring:
     name: order
     language-default: en
   jpa:
+    properties:
+      hibernate:
+        jdbc.batch_size: 50 # Gom 50 record rồi xử lý
+        order_inserts: true # Sắp xếp để gom nhóm tốt hơn
+        order_updates: true
+        batch_versioned_data: true
     hibernate:
       ddl-auto: validate
     show-sql: true
+  threads:
+    virtual:
+      enabled: true
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6319
+      password: ""
+      lettuce:
+       pool:
+         max-active: 10
+         max-idle: 5
+         min-idle: 5
+#        max-wait: -1ms # Maximum wait time to get a connection from the pool (uses -1 for no limit)
+      connect-timeout: 30000
   datasource:
     url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/e_order_service
     username: postgres
@@ -42,14 +63,21 @@ spring:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer #key
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer #value
       properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         # cho phép deserialize class custom
         spring.json.trusted.packages: "*"
     # config producer
     producer:
+      retries: 0
+      batch-size: 16384
+      buffer-memory: 33554432
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
+    listener:
+      missing-topics-fatal: false
+      ack-mode: manual_immediate
     group:
       permission: identity-permission-sync
       identity: identity-group
@@ -60,6 +88,7 @@ spring:
       shipping: shipping-group
       notification: notification-group
       resource: resource-group
+      order-reply-saga: order-saga-orchestrator-reply-group
     # kafka topic (<domain>.<entity>.<event-type>)
     topic:
       identity:
@@ -70,7 +99,15 @@ spring:
         shop-management-created-success: com.product.shop.management.created.success
         approval-history-approved-product-success: com.identity.approval.history.approved.success # Phê duyệt sản phẩm thành công
       order:
-        order-created-success: com.order.order.created.success
+        order-created-success-payment: com.order.order.created.success.payment
+        order-created-success-shipping: com.order.order.created.success.shipping
+        order-created-success-inventory: com.order.order.created.success.inventory
+        order-created-success-promotion: com.order.order.created.success.promotion
+        order-created-success-payment-failed: com.order.order.created.success.payment.failed
+        order-created-success-shipping-failed: com.order.order.created.success.shipping.failed
+        order-created-success-inventory-failed: com.order.order.created.success.inventory.failed
+        order-created-success-promotion-failed: com.order.order.created.success.promotion.failed
+        order-created-success-reply: com.order.order.saga.reply.topic # topic chung để reply trong Saga Orchestrator
 jwt:
   base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
   access-token-in-seconds: 86400
@@ -78,3 +115,12 @@ jwt:
 role:
   admin: ADMIN
   seller: SELLER
+
+app:
+  cache:
+    order:
+      prefix: "fsh:ord" # Order
+      lock: "lock:fsh:ord" # Order Lock
+      keys:
+        order-info: "orI" # Order Information
+        coupon-info: "couI"

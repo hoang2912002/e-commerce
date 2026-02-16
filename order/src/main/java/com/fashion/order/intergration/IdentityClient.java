@@ -20,7 +20,10 @@ import com.fashion.order.intergration.config.FeignClientConfigError;
 public interface IdentityClient {
     //--------------------Users--------------------
     @GetMapping(value = "/users/internal/get-internal-user-by-id")
-    ApiResponse<UserResponse> getInternalUserById(@RequestParam UUID id);
+    ApiResponse<UserResponse> getInternalUserById(
+        @RequestParam("id") UUID id, 
+        @RequestParam("version") Long version
+    );
 
     //--------------------Address--------------------
     @GetMapping(value = "/addresses/internal/get-internal-address-by-id")

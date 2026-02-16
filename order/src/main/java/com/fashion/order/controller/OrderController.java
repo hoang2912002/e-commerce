@@ -62,7 +62,7 @@ public class OrderController {
         @PathVariable("id") UUID id,
         @RequestBody() OrderRequest order
     ) {
-        return ResponseEntity.status(HttpStatus.OK).body(this.orderService.updateOrderStatus(id, order.getStatus(), order.getNote()));
+        return ResponseEntity.status(HttpStatus.OK).body(this.orderService.updateOrderStatus(id, order.getStatus(), order.getNote(), order.getVersion()));
     }
     
 

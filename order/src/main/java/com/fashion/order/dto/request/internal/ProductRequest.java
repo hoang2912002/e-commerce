@@ -32,6 +32,6 @@ public class ProductRequest {
     public static class InnerInternalProductRequest {
         List<UUID> productIdList;
         List<UUID> productSkuIdList;
-        
+        Long version;
     }
 }

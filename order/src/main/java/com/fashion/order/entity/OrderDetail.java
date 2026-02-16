@@ -43,7 +43,7 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @IdClass(OrderDetailId.class) // Primary key class when using composite keys (partition)
-public class OrderDetail extends AbstractAuditingEntity<Long>{
+public class OrderDetail extends AbstractAuditingPartitionEntity<Long>{
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "order_detail_seq")
     @SequenceGenerator(name = "order_detail_seq", sequenceName = "order_detail_seq", allocationSize = 1)
@@ -54,6 +54,14 @@ public class OrderDetail extends AbstractAuditingEntity<Long>{
     public Long getId() {
         return this.id;
     }
+
+    @Id
+    @Column(name = "created_at", nullable = false, updatable = false)
+    Instant createdAt;
+
+    @Column(name = "order_created_at", nullable = false, updatable = false)
+    Instant orderCreatedAt;
+
     @Column(name = "price_original", nullable = false)
     BigDecimal priceOriginal; //giá gốc
     
@@ -81,7 +89,7 @@ public class OrderDetail extends AbstractAuditingEntity<Long>{
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumns({
         @JoinColumn(name = "order_id", referencedColumnName = "id", insertable = false, updatable = false),
-        @JoinColumn(name = "created_at", referencedColumnName = "created_at", insertable = false, updatable = false)
+        @JoinColumn(name = "order_created_at", referencedColumnName = "created_at", insertable = false, updatable = false)
     })
     Order order;
 

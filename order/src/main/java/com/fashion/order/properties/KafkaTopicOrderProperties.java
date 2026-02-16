@@ -12,5 +12,13 @@ import lombok.experimental.FieldDefaults;
 @ConfigurationProperties("spring.kafka.topic.order")
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class KafkaTopicOrderProperties {
-    String orderCreatedSuccess;
+    String orderCreatedSuccessPayment;
+    String orderCreatedSuccessShipping;
+    String orderCreatedSuccessInventory;
+    String orderCreatedSuccessPromotion;
+    String orderCreatedSuccessPaymentFailed;
+    String orderCreatedSuccessShippingFailed;
+    String orderCreatedSuccessInventoryFailed;
+    String orderCreatedSuccessPromotionFailed;
+    String orderCreatedSuccessReply;
 }

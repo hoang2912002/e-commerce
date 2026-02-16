@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.order.common.annotation.ApiMessageResponse;
@@ -54,9 +55,10 @@ public class CouponController {
     @GetMapping("/{id}")
     @ApiMessageResponse("coupon.success.get.single")
     public ResponseEntity<CouponResponse> getCouponById(
-        @PathVariable("id") UUID id
+        @PathVariable("id") UUID id,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.ok(this.couponService.getCouponById(id));
+        return ResponseEntity.ok(this.couponService.getCouponById(id, version));
     }
 
     @GetMapping("")

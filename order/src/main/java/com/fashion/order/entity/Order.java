@@ -1,6 +1,7 @@
 package com.fashion.order.entity;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -50,7 +51,7 @@ import lombok.experimental.FieldDefaults;
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
 @IdClass(OrderId.class) // Primary key class when using composite keys (partition)
-public class Order extends AbstractAuditingEntity<UUID>{
+public class Order extends AbstractAuditingPartitionEntity<UUID>{
     @Id
     @GeneratedValue(generator = "UUID")
     // @GenericGenerator(name = "UUID", strategy = "org.hibernate.id.UUIDGenerator")
@@ -61,6 +62,10 @@ public class Order extends AbstractAuditingEntity<UUID>{
     public UUID getId() {
         return this.id;
     }
+
+    @Id
+    @Column(name = "created_at", nullable = false, updatable = false)
+    Instant createdAt;
 
     @Version
     Long version;
@@ -131,8 +136,11 @@ public class Order extends AbstractAuditingEntity<UUID>{
     @Column(name = "receiver_ward")
     String receiverWard;
 
-    @OneToMany( mappedBy = "order", fetch = FetchType.LAZY,cascade = CascadeType.ALL,orphanRemoval = true)
+    @OneToMany( mappedBy = "order", fetch = FetchType.LAZY,orphanRemoval = true)
     List<OrderDetail> orderDetails = new ArrayList<>();
+    
+    @OneToMany( mappedBy = "order", fetch = FetchType.LAZY,orphanRemoval = true)
+    List<SagaState> sagaStates = new ArrayList<>();
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "coupon_id")

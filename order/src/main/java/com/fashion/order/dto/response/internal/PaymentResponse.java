@@ -28,6 +28,8 @@ public class PaymentResponse {
     @Enumerated(EnumType.STRING)
     PaymentEnum status;
     UUID orderId;
+    String orderCode;
+    Instant orderCreatedAt;
     String note;
     String redirectUrl;
 
@@ -47,7 +49,9 @@ public class PaymentResponse {
         UUID id;
         BigDecimal amount;
         UUID orderId;
+        String orderCode;
         String paymentMethod;
         PaymentEnum status;
+        Instant orderCreatedAt;
     }
 }

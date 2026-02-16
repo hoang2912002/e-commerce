@@ -2,18 +2,28 @@ package com.fashion.order.service.impls;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+import org.apache.kafka.common.protocol.types.Field.Str;
 import org.hibernate.StaleStateException;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,11 +37,15 @@ import com.fashion.order.dto.request.search.SearchOption;
 import com.fashion.order.dto.request.search.SearchRequest;
 import com.fashion.order.dto.response.CouponResponse;
 import com.fashion.order.dto.response.PaginationResponse;
+import com.fashion.order.dto.response.CouponResponse.InnerLuaCouponResponse;
+import com.fashion.order.dto.response.internal.ProductResponse;
 import com.fashion.order.entity.Coupon;
 import com.fashion.order.exception.ServiceException;
 import com.fashion.order.mapper.CouponMapper;
+import com.fashion.order.properties.cache.OrderServiceCacheProperties;
 import com.fashion.order.repository.CouponRepository;
 import com.fashion.order.service.CouponService;
+import com.fashion.order.service.provider.CacheProvider;
 
 import jakarta.persistence.OptimisticLockException;
 import lombok.AccessLevel;
@@ -46,6 +60,11 @@ import lombok.extern.slf4j.Slf4j;
 public class CouponServiceImpl implements CouponService{
     CouponMapper couponMapper;
     CouponRepository couponRepository;
+    OrderServiceCacheProperties orderServiceCacheProperties;
+    CacheProvider cacheProvider;
+    DefaultRedisScript<Long> scriptDecrementCoupon;
+    DefaultRedisScript<Long> scriptIncreaseCoupon;
+    StringRedisTemplate stringRedisTemplate;
 
     @Override
     @Transactional(rollbackFor = ServiceException.class)
@@ -83,16 +102,19 @@ public class CouponServiceImpl implements CouponService{
 
     @Override
     @Transactional(readOnly = true)
-    public CouponResponse getCouponById(UUID id) {
+    public CouponResponse getCouponById(UUID id, Long version) {
         try {
-            Coupon coupon = this.couponRepository.findById(id).orElseThrow(
-                () -> new ServiceException(
-                    EnumError.ORDER_COUPON_ERR_NOT_FOUND_ID, 
-                    "coupon.not.found.id",
-                    Map.of("id", id
-                ))
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return this.cacheProvider.getDataResponse(cacheKey, lockKey, version, CouponResponse.class, () -> 
+                this.couponRepository.findById(id)
+                .map((c) -> {
+                    CouponResponse couponResponse = this.couponMapper.toDto(c);
+                    couponResponse.setVersion(System.currentTimeMillis());
+                    return couponResponse;
+                })
+                .orElse(null)
             );
-            return this.couponMapper.toDto(coupon);
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -141,7 +163,7 @@ public class CouponServiceImpl implements CouponService{
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // @Transactional(readOnly = true)
     public Coupon validateCouponOrder(UUID id) {
         try {
             Coupon coupon = this.couponRepository.findById(id).orElseThrow(
@@ -174,7 +196,7 @@ public class CouponServiceImpl implements CouponService{
 
     @Override
     @Transactional(rollbackFor = ServiceException.class)
-    public void decreaseStock(UUID id) {
+    public Void decreaseStock(UUID id) {
         try {
             Coupon coupon = this.couponRepository.findById(id).orElseThrow(
                 () -> new ServiceException(
@@ -199,6 +221,7 @@ public class CouponServiceImpl implements CouponService{
             log.error("ORDER-SERVICE: [decreaseStock] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.ORDER_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
+        return null;
     }
 
     @Override
@@ -206,6 +229,104 @@ public class CouponServiceImpl implements CouponService{
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'increaseStock'");
     }
+
+    @Override 
+    public InnerLuaCouponResponse decreaseStockAtomic(UUID id, Integer decreaseAmount, Long version){
+        String cacheKey = this.getCacheKey(id);
+        String lockKey = this.getLockKey(id);
+        try {
+            Long deductionStock = stringRedisTemplate.execute(
+                scriptDecrementCoupon,
+                Collections.singletonList(cacheKey),
+                String.valueOf(decreaseAmount)
+            );
+            InnerLuaCouponResponse result = InnerLuaCouponResponse.notFound(id);
+            if(deductionStock == -2){
+                log.error("ORDER-SERVICE: [decreaseStockAtomic] Error can not found coupon by key : {}", cacheKey);
+                result = InnerLuaCouponResponse.notFound(id);
+            } else {
+                CouponResponse couponResponse = this.cacheProvider.getDataResponse(cacheKey, lockKey, version, CouponResponse.class, null);
+                Integer stock = couponResponse.getStock() != null ? couponResponse.getStock() : decreaseAmount;
+                if (deductionStock == -1) {
+                    log.error("ORDER-SERVICE: [decreaseStockAtomic] Error current stock is not enough for this process: {}", stock);
+                    result = InnerLuaCouponResponse.insufficient(id, stock, decreaseAmount);
+                }
+                else if(deductionStock > 0){
+                    log.info("ORDER-SERVICE: [decreaseStockAtomic] Success deduction(decrease stock) of coupon by key : {}", cacheKey);
+                    result = InnerLuaCouponResponse.success(id, stock, decreaseAmount);
+                    // this.syncCouponToDatabase(id, deductionStock.intValue());
+                }
+            } 
+            return result;
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: [decreaseStockAtomic] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.ORDER_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @EventListener(ApplicationReadyEvent.class)
+    public Void warmCoupon() {
+        log.info("ORDER-SERVICE: [warmCoupon] Starting cache warming...");
+        
+        try {
+            List<Coupon> popularCoupons = this.couponRepository.findTop100ByOrderByCreatedAtDesc();
+            List<CouponResponse> couponResponses = this.couponMapper.toDto(popularCoupons);
+            for (CouponResponse couponResponse : couponResponses) {
+                this.updateCouponCache(couponResponse);
+            }
+            log.info("ORDER-SERVICE: Warmed cache for {} coupons", popularCoupons.size());
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: Cache warming failed", e);
+        }
+        return null;
+    }
+
+    @Override
+    public void restoreStockAtomic(UUID id, Integer restoreAmount, Long version){
+        String cacheKey = this.getCacheKey(id);
+        String lockKey = this.getLockKey(id);
+        try {
+            Long newStock = stringRedisTemplate.execute(
+                scriptIncreaseCoupon,
+                Collections.singletonList(cacheKey),
+                String.valueOf(restoreAmount)
+            );
+
+            if (newStock != null && newStock >= 0) {
+                // this.syncCouponToDatabase(id, newStock.intValue());
+                log.info("ORDER-SERVICE: [restoreStockAtomic]: Restored stock for {}. New stock: {}", id, newStock);
+            }
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: [restoreStockAtomic] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.ORDER_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+    @Override
+    @Async("virtualExecutor")
+    public void syncCouponToDatabase(UUID couponId, Integer newStock) {
+        try {
+            int updated = this.couponRepository.updateStockAtomic(couponId, newStock);
+            
+            if (updated > 0) {
+                Coupon coupon = this.couponRepository.findById(couponId).orElse(null);
+                if(coupon != null){
+                    this.updateCouponCache(this.couponMapper.toDto(coupon));
+                }
+                log.info("ORDER-SERVICE: [decreaseStockAtomic]: Synced stock to DB for {}. New stock: {}", couponId, newStock);
+            } else {
+                log.warn("ORDER-SERVICE: [decreaseStockAtomic]: Failed to sync stock to DB for {}", couponId);
+            }
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: [decreaseStockAtomic]: Failed to sync to DB for {}: {}", couponId, e.getMessage());
+        }
+    }
+
 
     private CouponResponse upSert(CouponRequest request, Coupon coupon){
         try {
@@ -249,6 +370,42 @@ public class CouponServiceImpl implements CouponService{
         } catch (Exception e) {
             log.error("ORDER-SERVICE: [checkExistedCoupon] Error: {}", e.getMessage(), e);
             throw new ServiceException(EnumError.ORDER_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
+    }
+
+
+    private String getCacheKey(UUID id){
+        return this.orderServiceCacheProperties.createCacheKey(
+            this.orderServiceCacheProperties.getKeys().getCouponInfo(),
+            id
+        );
+    }
+    
+    private String generateBatchLockKey(Set<UUID> ids){
+        return this.orderServiceCacheProperties.createCacheKey(
+            this.orderServiceCacheProperties.getKeys().getCouponInfo(),
+            ids.stream().sorted().map(UUID::toString).collect(Collectors.joining(":")).hashCode()
+        );
+    }
+    
+    private String getLockKey(UUID id){
+        return this.orderServiceCacheProperties.createLockKey(
+            this.orderServiceCacheProperties.getKeys().getCouponInfo(),
+            id
+        );
+    }
+
+    private void updateCouponCache(CouponResponse couponResponse) {
+        try {
+            couponResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(couponResponse.getId());
+            cacheProvider.put(cacheKey, couponResponse);
+            
+            log.info("ORDER-SERVICE: Updated cache for coupon ID: {}", couponResponse.getId());
+        } catch (Exception e) {
+            // Don't fail the operation if cache update fails
+            log.error("ORDER-SERVICE: [updateCouponCache] Error updating cache: {}", e.getMessage(), e);
         }
     }
 }

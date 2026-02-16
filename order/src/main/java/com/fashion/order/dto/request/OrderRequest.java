@@ -54,6 +54,9 @@ public class OrderRequest {
     List<InnerOrderDetail_FromOrderRequest> orderDetails;
     
     @NotNull(groups = Update.class, message = "order.version.notSimilar.currentVersion")
+    Long dbVersion;
+    
+    @NotNull(groups ={Create.class, Update.class}, message = "order.version.notNull")
     Long version;
 
     InnerCouponRequest coupon;

@@ -24,5 +24,5 @@ import com.fashion.order.intergration.config.FeignClientConfigError;
 public interface InventoryClient {
     //--------------------Products--------------------
     @PostMapping(value = "/inventories/internal/validate-internal-inventory-and-check-quantity-available")
-    ApiResponse<Void> checkQuantityAvailableInventoryByProductSkuId(@RequestBody Collection<InnerOrderDetail_FromOrderRequest> inventory);
+    ApiResponse<Void> checkQuantityAvailableInventoryByProductSkuId(@RequestBody Collection<InnerOrderDetail_FromOrderRequest> inventory, @RequestParam Long version);
 }

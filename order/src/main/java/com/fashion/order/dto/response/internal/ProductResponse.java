@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import com.fashion.order.dto.response.VersionResponse;
 import com.fashion.order.dto.response.internal.ProductSkuResponse.InnerProductSkuResponse;
 import com.fashion.order.dto.response.internal.PromotionResponse.InnerPromotionResponse;
 import com.fashion.order.dto.response.internal.ShopManagementResponse.InnerShopManagementResponse;
@@ -20,7 +21,7 @@ import lombok.experimental.FieldDefaults;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class ProductResponse {
+public class ProductResponse extends VersionResponse{
     UUID id;
     String name;
     String price;
