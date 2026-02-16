@@ -29,6 +29,7 @@ public class OrderCreatedEvent {
     ShippingResponse shipping;
     InnerInternalPayment payment;
     Map<UUID, Integer> promotions;
+    Long version;
 
     @Getter
     @FieldDefaults(level = AccessLevel.PRIVATE)

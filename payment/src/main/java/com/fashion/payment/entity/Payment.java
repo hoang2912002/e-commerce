@@ -77,6 +77,9 @@ public class Payment extends AbstractAuditingPartitionEntity<UUID>{
     @Column(name = "order_code", unique = true, nullable = false)
     String orderCode;
 
+    @Column(name = "order_created_at", nullable = false, updatable = false)
+    Instant orderCreatedAt;
+
     @Column(name = "paid_at")
     LocalDateTime paidAt;
 

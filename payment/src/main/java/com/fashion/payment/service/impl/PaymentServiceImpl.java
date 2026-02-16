@@ -39,6 +39,7 @@ import com.fashion.payment.dto.response.PaymentResponse;
 import com.fashion.payment.dto.response.PaymentResponse.InnerInternalPayment;
 import com.fashion.payment.dto.response.internal.InventoryResponse;
 import com.fashion.payment.dto.response.internal.OrderResponse;
+import com.fashion.payment.dto.response.kafka.SagaStateResponse;
 import com.fashion.payment.entity.Payment;
 import com.fashion.payment.entity.PaymentMethod;
 import com.fashion.payment.entity.PaymentTransaction;
@@ -83,7 +84,7 @@ public class PaymentServiceImpl implements PaymentService{
     public PaymentResponse createPayment(PaymentRequest request) {
         log.info("PAYMENT-SERVICE: [createPayment] Start create payment");
         try {
-            PaymentResponse paymentResponse = this.savePayment(request, UUID.randomUUID(), false);
+            PaymentResponse paymentResponse = this.savePayment(request, UUID.randomUUID(), false, true);
             this.updatePaymentCache(paymentResponse);
             return paymentResponse;
         } catch (ServiceException e) {
@@ -98,7 +99,7 @@ public class PaymentServiceImpl implements PaymentService{
     public PaymentResponse updatePayment(PaymentRequest request) {
         log.info("PAYMENT-SERVICE: [updatePayment] Start update payment");
         try {
-            PaymentResponse paymentResponse = this.savePayment(request, UUID.randomUUID(), false);
+            PaymentResponse paymentResponse = this.savePayment(request, UUID.randomUUID(), false, true);
             this.updatePaymentCache(paymentResponse);
             return paymentResponse;
         } catch (ServiceException e) {
@@ -176,12 +177,13 @@ public class PaymentServiceImpl implements PaymentService{
 
     @Override
     @Transactional(rollbackFor = ServiceException.class, timeout = 30)
-    public void upSertPayment(InnerInternalPayment request, UUID eventId) {
+    public SagaStateResponse upSertPayment(InnerInternalPayment request, UUID eventId, Boolean isSuccess) {
         try {
-            if(!this.checkExistedDataPayment(request)) return;
+            if(!this.checkExistedDataPayment(request)) 
+                return SagaStateResponse.failurePayment(request.getId(), request.getStatus(), "Payment data from Order must not be null"); 
             if(this.paymentTransactionRepository.existsByEventId(eventId)){
                 log.warn("PAYMENT-SERVICE: Event {} already processed. Skipping.", eventId);
-                return;             
+                return SagaStateResponse.failurePayment(request.getId(), request.getStatus(), "Payment already existed with the eventId");             
             }
             InnerPaymentMethodRequest pMethodRequest = InnerPaymentMethodRequest.builder()
                 .code(request.getPaymentMethod())
@@ -189,11 +191,14 @@ public class PaymentServiceImpl implements PaymentService{
             PaymentRequest paymentRequest = PaymentRequest.builder()
                 .id(request.getId())
                 .amount(request.getAmount())
+                .orderCode(request.getOrderCode())
                 .status(request.getStatus())
                 .orderId(request.getOrderId())
                 .paymentMethod(pMethodRequest)
+                .orderCreatedAt(request.getOrderCreatedAt())
                 .build();
-            this.savePayment(paymentRequest,eventId,true);
+            PaymentResponse paymentResponse = this.savePayment(paymentRequest,eventId,true, isSuccess);
+            return SagaStateResponse.successPayment(paymentResponse.getId(), paymentResponse.getStatus());
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -222,7 +227,12 @@ public class PaymentServiceImpl implements PaymentService{
             throw new ServiceException(EnumError.PAYMENT_INTERNAL_ERROR_CALL_API, "server.error.internal");
         }
     }
-    private PaymentResponse savePayment(PaymentRequest request, UUID eventId, boolean skipCheckOrder) {
+    private PaymentResponse savePayment(
+        PaymentRequest request, 
+        UUID eventId, 
+        boolean skipCheckOrder, 
+        Boolean isSuccess // Saga Orchestration
+    ) {
         try {
             boolean isUpdate = request.getId() != null;
 
@@ -268,10 +278,13 @@ public class PaymentServiceImpl implements PaymentService{
             PaymentMethod paymentMethod = paymentMethFuture.join();
             OrderResponse orderResponse = orderFuture.join().getData();
 
+            // Update position if from saga order failed => isSuccess = false
             if(isUpdate){
-                if (List.of(PaymentEnum.FAILED, PaymentEnum.SUCCESS).contains(payment.getStatus()))
-                    throw new ServiceException(EnumError.PAYMENT_PAYMENT_STATUS_NOT_PENDING_CANNOT_UPDATE, "payment.status.cannot.update.payment", Map.of("id", request.getId()));
+                if(isSuccess == true){
+                    if (List.of(PaymentEnum.FAILED, PaymentEnum.SUCCESS).contains(payment.getStatus()))
+                        throw new ServiceException(EnumError.PAYMENT_PAYMENT_STATUS_NOT_PENDING_CANNOT_UPDATE, "payment.status.cannot.update.payment", Map.of("id", request.getId()));
 
+                }
             } else{
                 payment.setStatus(PaymentEnum.PENDING);
                 payment.setId(UUID.randomUUID());
@@ -286,6 +299,7 @@ public class PaymentServiceImpl implements PaymentService{
             payment.setAmount(orderResponse != null ? orderResponse.getFinalPrice() : request.getAmount()); 
             payment.setOrderId(orderResponse != null ? orderResponse.getId() : request.getOrderId());
             payment.setOrderCode(request.getOrderCode());
+            payment.setOrderCreatedAt(request.getOrderCreatedAt());
 
             Payment savedPayment = paymentRepository.save(payment);
             paymentRepository.flush(); 
@@ -306,7 +320,7 @@ public class PaymentServiceImpl implements PaymentService{
             
             PaymentTransaction saveTransaction = this.paymentTransactionRepository.save(paymentTransaction);
             PaymentResponse paymentResponse;
-            if (!paymentMethod.getCode().equalsIgnoreCase(this.paymentCodProperties.getPartnerCode())) {
+            if (!paymentMethod.getCode().equalsIgnoreCase(this.paymentCodProperties.getPartnerCode()) && isSuccess) {
                 PaymentStrategy paymentStrategy = this.paymentProcessorFactory.getProcessor(paymentMethod.getCode().toLowerCase());
                 paymentResponse = paymentStrategy.process(savedPayment, eventId);
             } else {

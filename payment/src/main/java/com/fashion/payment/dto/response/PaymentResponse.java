@@ -59,7 +59,9 @@ public class PaymentResponse extends VersionResponse{
         UUID id;
         BigDecimal amount;
         UUID orderId;
+        String orderCode;
         String paymentMethod;
         PaymentEnum status;
+        Instant orderCreatedAt;
     }
 }

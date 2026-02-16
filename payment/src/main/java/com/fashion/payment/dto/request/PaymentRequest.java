@@ -44,6 +44,9 @@ public class PaymentRequest {
    
     @NotNull(groups = {Create.class,Update.class}, message = "payment.orderCode.notNull")
     String orderCode;
+    
+    @NotNull(groups = {Create.class,Update.class}, message = "payment.orderCreatedAt.notNull")
+    Instant orderCreatedAt;
 
     @NotNull(groups = {Create.class,Update.class}, message = "payment.version.notNull")
     Long version;

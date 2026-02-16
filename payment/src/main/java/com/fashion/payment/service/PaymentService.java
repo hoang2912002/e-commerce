@@ -8,12 +8,13 @@ import com.fashion.payment.dto.request.search.SearchRequest;
 import com.fashion.payment.dto.response.PaginationResponse;
 import com.fashion.payment.dto.response.PaymentResponse;
 import com.fashion.payment.dto.response.PaymentResponse.InnerInternalPayment;
+import com.fashion.payment.dto.response.kafka.SagaStateResponse;
 
 public interface PaymentService {
     PaymentResponse createPayment(PaymentRequest request);
     PaymentResponse updatePayment(PaymentRequest request);
     PaymentResponse getPaymentById(UUID id, String date, Long version);
     PaginationResponse<List<PaymentResponse>> getAllPayment(SearchRequest request);
-    void upSertPayment(InnerInternalPayment request, UUID eventId);
+    SagaStateResponse upSertPayment(InnerInternalPayment request, UUID eventId, Boolean isSuccess);
     void deletePaymentById(UUID id);
 }
