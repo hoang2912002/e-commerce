@@ -1,0 +1,154 @@
+server:
+  port: 8085
+  servlet:
+    context-path: /shipping
+service:
+  identity:
+    url: http://localhost:8080/identity
+    name: identity-service
+  product:
+    url: http://localhost:8081/product
+    name: product-service
+  order:
+    url: http://localhost:8082/order
+    name: order-service
+  inventory:
+    url: http://localhost:8083/inventory
+    name: inventory-service
+  payment:
+    url: http://localhost:8084/payment
+    name: payment-service
+  shipping:
+    url: http://localhost:8085/shipping
+    name: shipping-service
+  notification:
+    url: http://localhost:8086/notification
+    name: notification-service
+  resource:
+    url: http://localhost:8087/resource
+    name: resource-service
+spring:
+  application:
+    name: shipping-service
+    language-default: en
+  jpa:
+    properties:
+      hibernate:
+        jdbc.batch_size: 50 # Gom 50 record rồi xử lý
+        order_inserts: true # Sắp xếp để gom nhóm tốt hơn
+        order_updates: true
+        batch_versioned_data: true
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+  threads:
+    virtual:
+      enabled: true
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6319
+      password: ""
+      lettuce:
+       pool:
+         max-active: 10
+         max-idle: 5
+         min-idle: 5
+         # max-wait: -1ms # Maximum wait time to get a connection from the pool (uses -1 for no limit)
+      connect-timeout: 30000
+
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:5432/e_shipping_service
+    username: postgres
+    password: 123456
+    driver-class-name: org.postgresql.Driver
+  kafka:
+    bootstrap-servers: localhost:9094
+    # config consumer
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer #key
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer #value
+      properties:
+        # cho phép deserialize class custom
+        spring.json.trusted.packages: "*"
+    listener:
+      missing-topics-fatal: false
+      ack-mode: manual_immediate
+    # config producer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    group:
+      permission: identity-permission-sync
+      identity: identity-group
+      product: product-group
+      order: order-group
+      inventory: inventory-group
+      payment: payment-group
+      shipping: shipping-group
+      notification: notification-group
+      resource: resource-group
+    # kafka topic (<domain>.<entity>.<event-type>)
+    topic:
+      identity:
+        # Lý do format permission-register ở consumer identity là chung cho nhiều service khác
+        permission-register: com.identity.permission_register
+        user-created: com.identity.user.created  # Gửi mail verify account khi tạo user
+        user-created-success: com.identity.user.created.success # Gửi mail thông báo đăng ký thành công
+      product:
+        shop-management-created-success: com.product.shop.management.created.success
+        approval-history-approved-product-success: com.identity.approval.history.approved.success # Phê duyệt sản phẩm thành công
+      inventory:
+        inventory-created-success: com.inventory.inventory.created.success
+        inventory-creation-failed: com.inventory.inventory.creation.failed
+      order:
+        order-created-success-payment: com.order.order.created.success.payment
+        order-created-success-shipping: com.order.order.created.success.shipping
+        order-created-success-inventory: com.order.order.created.success.inventory
+        order-created-success-promotion: com.order.order.created.success.promotion
+        order-created-success-payment-failed: com.order.order.created.success.payment.failed
+        order-created-success-shipping-failed: com.order.order.created.success.shipping.failed
+        order-created-success-inventory-failed: com.order.order.created.success.inventory.failed
+        order-created-success-promotion-failed: com.order.order.created.success.promotion.failed
+        order-created-success-reply: com.order.order.saga.reply.topic # topic chung để reply trong Saga Orchestrator
+
+jwt:
+  base64-secret: cjfj7FWvhyO66IPFwEtdlx2uQYVvBGL7NL6quv81W8v4cITO893aTdYld+FipAkHDZ4RxnaLN3bXkNskACbWFA==
+  access-token-in-seconds: 86400
+  refresh-token-in-seconds: 2592000
+role:
+  admin: ADMIN
+  seller: SELLER
+
+app:
+  cache:
+    shipping:
+      prefix: "fsh:ship" # Shipping
+      lock: "lock:fsh:ship" # Shipping Lock
+      keys:
+        shipping-info: "shipI" # Shipping Information
+        shipping-third-party-ghn-district: "ghn:map:district_name_to_id"
+        shipping-third-party-ghn-ward: "ghn:map:ward_name_to_id"
+        shipping-third-party-ghn-province: "ghn:map:province_name_to_id"
+        shipping-third-party-ghn-fee-lead-time: "ghn:fee_leadtime" # Shipping fee and estimate time
+
+shipping:
+  ghn:
+    api-token-dev: 4b77545e-d574-11f0-a3d6-dac90fb956b5
+    api-token-production: e4c6a28a-d571-11f0-9faf-d2a58b2a766b
+    # address:
+    #   base-url: https://dev-online-gateway.ghn.vn/shiip/public-api/master-data
+    base-url-dev: https://dev-online-gateway.ghn.vn/shiip/public-api
+    base-url-production: https://online-gateway.ghn.vn/shiip/public-api
+    shop-id-dev: 198392
+    shop-id-production: 6157958
+    shop-address-district-name: Thành phố Biên Hòa
+    shop-address-district-id: 1536
+    shop-address-ward-name: Phường Long Bình
+    shop-address-ward-id: 480107
+    shop-address-province.name: Đồng Nai
+    shop-address-province.id: 204
+    shop-address-house-number-name: 679/27 tổ 2 khu phố 7
