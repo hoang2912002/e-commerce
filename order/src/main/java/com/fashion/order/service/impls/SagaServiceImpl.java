@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fashion.order.common.enums.SagaStateStatusEnum;
 import com.fashion.order.common.enums.SagaStateStepEnum;
 import com.fashion.order.dto.response.SagaStateResponse;
+import com.fashion.order.dto.response.internal.ShippingResponse;
 import com.fashion.order.dto.response.internal.InventoryResponse.ReturnAvailableQuantity;
 import com.fashion.order.dto.response.internal.PaymentResponse.InnerInternalPayment;
 import com.fashion.order.dto.response.kafka.OrderCreatedEvent;
@@ -84,7 +85,7 @@ public class SagaServiceImpl implements SagaStateService {
                     return CompletableFuture.completedFuture(result);
                 }
                 
-                sagaState.setStep(SagaStateStepEnum.PROMOTION);
+                sagaState.setStep(SagaStateStepEnum.SHIPPING);
                 sagaState.setPayload(orderCreatedEvent.getPayment().toString());
                 sagaStateRepository.save(sagaState);
                 sagaStateRepository.flush();
@@ -92,6 +93,24 @@ public class SagaServiceImpl implements SagaStateService {
                 order.setPaymentId(result.getPaymentId());
                 order.setPaymentStatus(result.getPaymentStatus());
                 orderRepository.updatePaymentId(order.getId(), createdAt, result.getPaymentId(), result.getPaymentStatus());
+                orderRepository.flush();
+                return executeShippingStep(sagaState, orderCreatedEvent.getShipping());
+            })
+            .orTimeout(35, TimeUnit.SECONDS)
+            .thenCompose(result -> {
+                if (!result.isSuccess()) {
+                    log.warn("ORDER-SERVICE: Shipping step failed for saga {}", sagaId);
+                    return CompletableFuture.completedFuture(result);
+                }
+                
+                sagaState.setStep(SagaStateStepEnum.PROMOTION);
+                sagaState.setPayload(orderCreatedEvent.getShipping().toString());
+                sagaStateRepository.save(sagaState);
+                sagaStateRepository.flush();
+
+                order.setShippingId(result.getShippingId());
+                order.setShippingStatus(result.getShippingStatus());
+                orderRepository.updateShippingId(order.getId(), createdAt, result.getShippingId(), result.getShippingStatus());
                 orderRepository.flush();
                 return executePromotionStep(sagaState, orderCreatedEvent.getPromotions());
             })
@@ -151,6 +170,22 @@ public class SagaServiceImpl implements SagaStateService {
             );
         }
     }    
+
+    private CompletableFuture<SagaStateResponse> executeShippingStep(
+        SagaState sagaState, 
+        ShippingResponse shipping
+    ) {
+        log.info("ORDER-SERVICE: [executeShippingStep] Executing SHIPPING step for saga {}", sagaState.getId());
+        
+        try {
+            return orderServiceProvider.produceOrderCreatedEventSuccessShipping(sagaState,shipping);
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: [executeShippingStep] Error executing SHIPPING step", e);
+            return CompletableFuture.completedFuture(
+                SagaStateResponse.failure("SHIPPING step failed: " + e.getMessage())
+            );
+        }
+    } 
     
     private CompletableFuture<SagaStateResponse> executePromotionStep(SagaState sagaState, Map<UUID, Integer> promotions){
         log.info("ORDER-SERVICE: [executePromotionStep] Executing PROMOTION step for saga {}", sagaState.getId());
@@ -187,6 +222,20 @@ public class SagaServiceImpl implements SagaStateService {
             return orderServiceProvider.produceOrderCreatedEventSuccessPaymentFailed(sagaState, payment);
         } catch (Exception e) {
             log.error("ORDER-SERVICE: [compensatePayment] Error compensating payment", e);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private CompletableFuture<Void> compensateShipping(
+        SagaState sagaState,
+        ShippingResponse shipping
+    ) {
+        log.warn("ORDER-SERVICE: [compensateShipping] Compensating SHIPPING for saga {}", sagaState.getId());
+        
+        try {
+            return orderServiceProvider.produceOrderCreatedEventSuccessShippingFailed(sagaState, shipping);
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: [compensateShipping] Error compensating shipping", e);
             return CompletableFuture.completedFuture(null);
         }
     }
@@ -233,6 +282,9 @@ public class SagaServiceImpl implements SagaStateService {
         }
         if (currentStep.ordinal() >= SagaStateStepEnum.PAYMENT.ordinal()) {
             compensations.add(compensatePayment(sagaState, orderCreatedEvent.getPayment()));
+        }
+        if (currentStep.ordinal() >= SagaStateStepEnum.SHIPPING.ordinal()) {
+            compensations.add(compensateShipping(sagaState, orderCreatedEvent.getShipping()));
         }
         
         return CompletableFuture.allOf(compensations.toArray(new CompletableFuture[0]));

@@ -1,8 +1,10 @@
 package com.fashion.order.common.util;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 public class FormatTime {
@@ -41,5 +43,20 @@ public class FormatTime {
         return instant
             .atZone(ZoneId.of("Asia/Ho_Chi_Minh"))
             .toLocalDateTime();
+    }
+
+    public static Instant[] getMonthRange(String dateStr) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd");
+        LocalDate date = LocalDate.parse(dateStr, formatter);
+        
+        Instant start = date.withDayOfMonth(1)
+            .atStartOfDay(ZoneOffset.UTC)
+            .toInstant();
+                            
+        Instant end = date.withDayOfMonth(1)
+            .plusMonths(1)
+            .atStartOfDay(ZoneOffset.UTC)
+            .toInstant();
+        return new Instant[]{start, end};
     }
 }

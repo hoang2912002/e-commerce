@@ -1,8 +1,9 @@
 package com.fashion.order.common.enums;
 
 public enum ShippingEnum {
-    WAITING,
+    PENDING,
     SHIPPING,
     DELIVERED,
-    FAILED
+    RETURNED,
+    FAILED,
 }

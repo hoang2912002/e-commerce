@@ -34,6 +34,7 @@ import com.fashion.order.common.enums.PaymentEnum;
 import com.fashion.order.common.enums.ShippingEnum;
 import com.fashion.order.common.response.ApiResponse;
 import com.fashion.order.common.util.AsyncUtils;
+import com.fashion.order.common.util.FormatTime;
 import com.fashion.order.dto.request.OrderRequest;
 import com.fashion.order.dto.request.OrderDetailRequest.InnerOrderDetailRequest;
 import com.fashion.order.dto.request.OrderDetailRequest.InnerOrderDetail_FromOrderRequest;
@@ -49,6 +50,8 @@ import com.fashion.order.dto.response.internal.PaymentResponse.InnerInternalPaym
 import com.fashion.order.dto.response.internal.ProductResponse;
 import com.fashion.order.dto.response.internal.ProductSkuResponse;
 import com.fashion.order.dto.response.internal.ShippingResponse;
+import com.fashion.order.dto.response.internal.ShippingResponse.InnerInternalShippingResponse;
+import com.fashion.order.dto.response.internal.ShippingResponse.InnerTempShippingFeeResponse;
 import com.fashion.order.dto.response.internal.ProductSkuResponse.InnerProductSkuResponse;
 import com.fashion.order.dto.response.kafka.OrderCreatedEvent;
 import com.fashion.order.dto.response.kafka.OrderCreatedEvent.InternalOrderCreatedEvent;
@@ -64,7 +67,9 @@ import com.fashion.order.exception.ServiceException;
 import com.fashion.order.intergration.IdentityClient;
 import com.fashion.order.intergration.InventoryClient;
 import com.fashion.order.intergration.ProductClient;
+import com.fashion.order.intergration.ShippingClient;
 import com.fashion.order.mapper.OrderMapper;
+import com.fashion.order.properties.cache.OrderServiceCacheProperties;
 import com.fashion.order.repository.OrderDetailRepository;
 import com.fashion.order.repository.OrderRepository;
 import com.fashion.order.security.SecurityUtils;
@@ -72,17 +77,21 @@ import com.fashion.order.service.CouponService;
 import com.fashion.order.service.OrderDetailService;
 import com.fashion.order.service.OrderService;
 import com.fashion.order.service.SagaStateService;
+import com.fashion.order.service.provider.CacheProvider;
 import com.fashion.order.service.provider.OrderUpdateStatusErrorProvider;
 
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class OrderServiceImpl implements OrderService{
+
+    final OrderServiceCacheProperties orderServiceCacheProperties;
     final OrderMapper orderMapper;
     final OrderRepository orderRepository;
     final OrderDetailRepository orderDetailRepository;
@@ -95,6 +104,8 @@ public class OrderServiceImpl implements OrderService{
     final ApplicationEventPublisher applicationEventPublisher;
     final Executor virtualExecutor;
     final SagaStateService sagaStateService;
+    final ShippingClient shippingClient;
+    final CacheProvider cacheProvider;
 
     @Value("${role.admin}")
     String adminRole;
@@ -203,7 +214,23 @@ public class OrderServiceImpl implements OrderService{
             CompletableFuture<ApiResponse<UserResponse>> userFuture = (order.getUserId() != null)
                 ? AsyncUtils.fetchAsyncWThread(() -> this.identityClient.getInternalUserById(order.getUserId(), request.getVersion()), virtualExecutor)
                 : CompletableFuture.completedFuture(null);
-            
+            UserResponse userResponse = userFuture.join().getData();
+            final InnerAddressResponse address = !userResponse.getAddresses().isEmpty() 
+                ? userResponse.getAddresses().getLast() 
+                : new InnerAddressResponse();
+
+            InnerInternalShippingResponse shippingRequest = InnerInternalShippingResponse.builder()
+                .provider(request.getShippingProvider())
+                .address(address.getAddress())
+                .district(address.getDistrict())
+                .ward(address.getWard())
+                .province(address.getProvince())
+                .version(request.getVersion())
+                .build();
+            CompletableFuture<ApiResponse<InnerTempShippingFeeResponse>> shippingEstimateFeeFuture = 
+                AsyncUtils.fetchAsyncWThread(
+                    () -> this.shippingClient.getInternalShippingFeeThirdParty(shippingRequest), virtualExecutor);
+
             CompletableFuture<ApiResponse<List<ProductResponse>>> productFuture = (!productIdList.isEmpty() && !productSkuIdList.isEmpty())
                 ? AsyncUtils.fetchAsyncWThread(() -> this.productClient.getInternalProductAndProductSkuById(
                     InnerInternalProductRequest.builder()
@@ -222,33 +249,21 @@ public class OrderServiceImpl implements OrderService{
             //     ? AsyncUtils.fetchAsyncWThread(() -> this.couponService.validateCouponOrder(order.getCoupon().getId(), request.getVersion()), virtualExecutor)
             //     : CompletableFuture.completedFuture(null);
             try {
-                CompletableFuture.allOf(userFuture, productFuture, inventoryFuture).join();
+                CompletableFuture.allOf(productFuture, inventoryFuture, shippingEstimateFeeFuture).join();
             } catch (CompletionException e) {
                 if (e.getCause() instanceof ServiceException serviceException) {
                     throw serviceException;
                 }
                 throw e;
             }    
-            UserResponse userResponse = userFuture.join().getData();
             List<ProductResponse> productResponse = productFuture.join().getData();
+            InnerTempShippingFeeResponse shippingFeeThirdParty = shippingEstimateFeeFuture.join().getData();
             inventoryFuture.join();
             Coupon coupon = this.couponService.validateCouponOrder(order.getCoupon().getId());
-
-            final InnerAddressResponse address = !userResponse.getAddresses().isEmpty() 
-                ? userResponse.getAddresses().getLast() 
-                : new InnerAddressResponse();
 
             // Decrease/increase inventory, promotion
             Set<ReturnAvailableQuantity> inventoriesDeduction = new HashSet<>();
             Map<UUID, Integer> promotionsDeduction = new HashMap<>();
-
-            // OrderCreatedEvent kafkaEventData = OrderCreatedEvent.builder()
-            //     .inventories(new HashSet<>())
-            //     .payment(new InnerInternalPayment())
-            //     .promotions(new HashMap<>())
-            //     .shipping(new ShippingResponse())
-            //     .version(System.currentTimeMillis())
-            //     .build();
 
             List<OrderDetail> orderDetails = new ArrayList<>();
             BigDecimal totalItemPrice_Order = BigDecimal.ZERO;
@@ -295,14 +310,7 @@ public class OrderServiceImpl implements OrderService{
                         // kafkaEventData.getPromotions().merge(pSku.getId(), ~quantity + 1, Integer::sum);
                         promotionsDeduction.merge(pSku.getPromotion().getId(),  ~quantity + 1, Integer::sum);
                     }
-                    // kafkaEventData.getInventories().add(
-                    //     ReturnAvailableQuantity.builder()
-                    //     .productId(product.getId())
-                    //     .productSkuId(pSku.getId())
-                    //     .circulationCount(quantity)
-                    //     .isNegative(true) // true -> Decrease inventory quantity available (Negative) and opposite
-                    //     .build()
-                    // );
+                    
                     inventoriesDeduction.add(
                         ReturnAvailableQuantity.builder()
                             .productId(product.getId())
@@ -324,7 +332,9 @@ public class OrderServiceImpl implements OrderService{
                 : coupon.getCouponAmount();
             couponAmount = couponAmount.min(totalItemPrice_Order);
             BigDecimal totalDiscount = totalDiscountByPromotion.add(couponAmount);
-            BigDecimal finalPrice = totalItemPrice_Order.subtract(totalDiscount);
+            BigDecimal shipFee = (shippingFeeThirdParty != null && shippingFeeThirdParty.getShippingFee() != null) 
+                     ? shippingFeeThirdParty.getShippingFee() : BigDecimal.ZERO;
+            BigDecimal finalPrice = totalItemPrice_Order.subtract(totalDiscount).add(shipFee);
             
             order.setActivated(true);
             order.setCoupon(coupon);
@@ -342,9 +352,9 @@ public class OrderServiceImpl implements OrderService{
             order.setUserId(userResponse.getId());
             order.setAddressId(address.getId());
             order.setPaymentStatus(PaymentEnum.PENDING);
-            order.setShippingStatus(ShippingEnum.WAITING);
+            order.setShippingStatus(ShippingEnum.PENDING);
             order.setFinalPrice(finalPrice);
-            order.setShippingFee(null);
+            order.setShippingFee(shippingFeeThirdParty.getShippingFee());
             order.setShippingId(null);
             order.setPaymentId(null);
             order.setCode(this.generateUniqueOrderCode());
@@ -374,14 +384,17 @@ public class OrderServiceImpl implements OrderService{
             saveODFuture.join();
             deCouponFuture.join();
 
-            // kafkaEventData.setPayment(
-            //     InnerInternalPayment.builder()
-            //     .status(order.getPaymentStatus())
-            //     .amount(order.getFinalPrice())
-            //     .paymentMethod(order.getPaymentMethod())
-            //     .orderId(order.getId())
-            //     .build()
-            // );
+            ShippingResponse shippingReq = ShippingResponse.builder()
+                .estimatedDate(shippingFeeThirdParty.getEstimatedDate())
+                .provider(request.getShippingProvider())
+                .shippingFee(shippingFeeThirdParty.getShippingFee())
+                .orderId(savedOrder.getId())
+                .orderCode(savedOrder.getCode())
+                .orderCreatedAt(savedOrder.getCreatedAt())
+                .createdAt(createdAt)
+                .eventId(UUID.randomUUID())
+                .build();
+            shippingReq.shippingResponse(request.getVersion());
             OrderCreatedEvent kafkaEventData = OrderCreatedEvent.builder()
                 .inventories(inventoriesDeduction)
                 .promotions(promotionsDeduction)
@@ -395,12 +408,9 @@ public class OrderServiceImpl implements OrderService{
                         .paymentMethod(savedOrder.getPaymentMethod())
                         .build()
                 )
-                .shipping(new ShippingResponse())
+                .shipping(shippingReq)
                 .version(System.currentTimeMillis())
                 .build();
-
-            // KAFKA SEND EVENT DECREASE: INVENTORY, PROMOTION. AND CREATE PAYMENT TRANSACTION.
-            // applicationEventPublisher.publishEvent(new InternalOrderCreatedEvent(this, kafkaEventData));
 
             sagaStateService.executeOrderSaga(kafkaEventData, savedOrder)
             .thenAccept((result) -> {
@@ -541,9 +551,30 @@ public class OrderServiceImpl implements OrderService{
     }
 
     @Override
-    public OrderResponse getOrderById(UUID id) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getOrderById'");
+    public OrderResponse getOrderById(UUID id, String date, Long version) {
+        try {
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, OrderResponse.class, 
+                () -> {
+                    Instant[] range = FormatTime.getMonthRange(date);
+                    Instant start = range[0];
+                    Instant end = range[1];
+                    return this.orderRepository.findByIdInPartition(id,start, end)
+                    .map(payment -> {
+                        OrderResponse orderResponse = this.orderMapper.toDto(payment);
+                        orderResponse.setVersion(System.currentTimeMillis());
+                        return orderResponse;
+                    })
+                    .orElse(null);
+                }
+            );
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: [getOrderById] Error: {}", e.getMessage(), e);
+            throw new ServiceException(EnumError.ORDER_INTERNAL_ERROR_CALL_API, "server.error.internal");
+        }
     }
 
     @Override
@@ -554,8 +585,27 @@ public class OrderServiceImpl implements OrderService{
 
     @Override
     @Transactional(readOnly = true)
-    public OrderResponse getInternalOrderById(UUID id, Boolean checkStatus){
+    public OrderResponse getInternalOrderById(UUID id, Long version, String orderCode, Boolean checkStatus){
         try {
+            String cacheKey = this.getCacheKey(id);
+            String lockKey = this.getLockKey(id);
+            return cacheProvider.getDataResponse(cacheKey, lockKey, version, OrderResponse.class, 
+                () -> {
+                    Instant[] range = FormatTime.getMonthRange(orderCode.substring(0, 8));
+                    Instant start = range[0];
+                    Instant end = range[1];
+                    return this.orderRepository.findByIdInPartition(id,start, end)
+                    .map(order -> {
+                        if(checkStatus){
+                            order.getStatus().validateUpdateOrder(orderUpdateStatusErrorProvider);
+                        }
+                        OrderResponse orderResponse = this.orderMapper.toDto(order);
+                        orderResponse.setVersion(System.currentTimeMillis());
+                        return orderResponse;
+                    })
+                    .orElse(null);
+                }
+            );
             // Order order = this.orderRepository.findById(id).orElseThrow(
             //     () -> new ServiceException(EnumError.ORDER_ORDER_ERR_NOT_FOUND_ID,"order.not.found.id", Map.of("id", id))
             // );
@@ -563,7 +613,7 @@ public class OrderServiceImpl implements OrderService{
             //     order.getStatus().validateUpdateOrder(orderUpdateStatusErrorProvider);
             // }
             // return this.orderMapper.toDto(order);
-            return null;
+            // return null;
         } catch (ServiceException e) {
             throw e;
         } catch (Exception e) {
@@ -951,5 +1001,32 @@ public class OrderServiceImpl implements OrderService{
                 log.error("ORDER: Compensation failed for order {}", order.getId(), e);
             }
         }, virtualExecutor);
+    }
+
+    private String getCacheKey(UUID id){
+        return this.orderServiceCacheProperties.createCacheKey(
+            this.orderServiceCacheProperties.getKeys().getOrderInfo(),
+            id
+        );
+    }
+
+    private String getLockKey(UUID id){
+        return this.orderServiceCacheProperties.createLockKey(
+            this.orderServiceCacheProperties.getKeys().getOrderInfo(),
+            id
+        );
+    }
+
+    private void updateOrderCache(OrderResponse orderResponse) {
+        try {
+            orderResponse.setVersion(System.currentTimeMillis());
+            
+            String cacheKey = this.getCacheKey(orderResponse.getId());
+            cacheProvider.put(cacheKey, orderResponse);
+            
+            log.info("ORDER-SERVICE: Updated cache for order ID: {}", orderResponse.getId());
+        } catch (Exception e) {
+            log.error("ORDER-SERVICE: [updateOrderCache] Error updating cache: {}", e.getMessage(), e);
+        }
     }
 }

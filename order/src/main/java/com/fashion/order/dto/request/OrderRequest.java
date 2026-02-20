@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.fashion.order.common.enums.OrderEnum;
+import com.fashion.order.common.enums.ShippingProvider;
 import com.fashion.order.dto.request.CouponRequest.InnerCouponRequest;
 import com.fashion.order.dto.request.OrderDetailRequest.InnerOrderDetailRequest;
 import com.fashion.order.dto.request.OrderDetailRequest.InnerOrderDetail_FromOrderRequest;
@@ -58,6 +59,9 @@ public class OrderRequest {
     
     @NotNull(groups ={Create.class, Update.class}, message = "order.version.notNull")
     Long version;
+
+    @NotNull(groups = {Create.class, Update.class}, message = "order.shippingProvider.notNull")
+    ShippingProvider shippingProvider;
 
     InnerCouponRequest coupon;
 

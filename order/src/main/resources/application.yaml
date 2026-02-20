@@ -15,6 +15,12 @@ service:
   inventory:
     url: http://localhost:8083/inventory
     name: inventory-service
+  payment:
+    url: http://localhost:8084/payment
+    name: payment-service
+  shipping:
+    url: http://localhost:8085/shipping
+    name: shipping-service
   notification:
     url: http://localhost:8086/notification
     name: notification-service

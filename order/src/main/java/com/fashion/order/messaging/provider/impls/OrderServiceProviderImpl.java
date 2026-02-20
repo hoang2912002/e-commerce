@@ -56,6 +56,25 @@ public class OrderServiceProviderImpl implements OrderServiceProvider{
     }
 
     @Override
+    public CompletableFuture<SagaStateResponse> produceOrderCreatedEventSuccessShipping(SagaState sagaState,ShippingResponse shipping) {
+        String topic = this.kafkaTopicOrderProperties.getOrderCreatedSuccessShipping();
+        String replyTopic = this.kafkaTopicOrderProperties.getOrderCreatedSuccessReply();
+        log.info("ORDER-SERVICE: [produceOrderCreatedEventSuccessShipping] Sending shipping command to topic {}", topic);
+
+        KafkaEvent<ShippingResponse> message = this.buildMetaData(EventType.SAGA_SHIPPING_COMMAND, shipping);
+        
+        return kafkaService.sendAndWaitReply(
+            topic,
+            replyTopic,
+            sagaState.getOrderId().toString(),
+            message,
+            SagaStateResponse.class,
+            30000L // 30 seconds timeout
+        );
+    }
+
+
+    @Override
     @Async("virtualExecutor")
     public CompletableFuture<SagaStateResponse> produceOrderCreatedEventSuccessPromotion(SagaState sagaState,
             Map<UUID, Integer> promotions) {
@@ -135,17 +154,16 @@ public class OrderServiceProviderImpl implements OrderServiceProvider{
     }
 
     @Override
-    public CompletableFuture<SagaStateResponse> produceOrderCreatedEventSuccessShipping(SagaState sagaState,
-            ShippingResponse shipping) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'produceOrderCreatedEventSuccessShipping'");
-    }
-
-    @Override
     public CompletableFuture<Void> produceOrderCreatedEventSuccessShippingFailed(SagaState sagaState,
-            ShippingResponse shipping) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'produceOrderCreatedEventSuccessShippingFailed'");
+            ShippingResponse shipping
+    ) {
+        String topic = this.kafkaTopicOrderProperties.getOrderCreatedSuccessShippingFailed();
+        log.warn("ORDER-SERVICE: [produceOrderCreatedEventSuccessShippingFailed] Sending inventory compensation to topic {}", topic);
+
+        KafkaEvent<ShippingResponse> message = this.buildMetaData(EventType.SAGA_SHIPPING_COMPENSATION, shipping);
+        kafkaService.send(topic, sagaState.getOrderId().toString(), message);
+        
+        return CompletableFuture.completedFuture(null);
     }
 
     private <T> KafkaEvent<T> buildMetaData(EventType eventType, T payload){

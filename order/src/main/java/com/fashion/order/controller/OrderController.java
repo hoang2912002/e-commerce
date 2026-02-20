@@ -69,9 +69,11 @@ public class OrderController {
     @GetMapping("/{id}")
     @ApiMessageResponse("order.success.get.single")
     public ResponseEntity<OrderResponse> getOrderById(
-        @PathVariable("id") UUID id
+        @PathVariable("id") UUID id,
+        @RequestParam("date") String date,
+        @RequestParam("version") Long version
     ) {
-        return ResponseEntity.ok(this.orderService.getOrderById(id));
+        return ResponseEntity.ok(this.orderService.getOrderById(id, date, version));
     }
     
     @GetMapping("/history")
@@ -103,8 +105,13 @@ public class OrderController {
     @GetMapping("/internal/get-internal-order-and-check-approval-by-id")
     @InternalEndpoint
     @ApiMessageResponse("order.success.get.single")
-    public ResponseEntity<OrderResponse> getInternalOrderAndCheckStatusById(@RequestParam UUID orderId) {
-        return ResponseEntity.ok(this.orderService.getInternalOrderById(orderId, true));
+    public ResponseEntity<OrderResponse> getInternalOrderAndCheckStatusById(
+        @RequestParam UUID orderId,
+        @RequestParam Long version
+        ,
+        @RequestParam String orderCode
+    ) {
+        return ResponseEntity.ok(this.orderService.getInternalOrderById(orderId, version, orderCode, true));
     }
     
 }

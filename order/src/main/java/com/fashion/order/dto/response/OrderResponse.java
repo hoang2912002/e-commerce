@@ -22,7 +22,7 @@ import lombok.experimental.FieldDefaults;
 @AllArgsConstructor
 @Builder
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class OrderResponse {
+public class OrderResponse extends VersionResponse{
     UUID id;
     String paymentStatus;
     String shippingStatus;
@@ -42,7 +42,15 @@ public class OrderResponse {
     String note;
     Long version;
     InnerCouponResponse coupon;
-    
+
+    String receiverName;
+    String receiverEmail;
+    String receiverPhone;
+    String receiverAddress;
+    String receiverProvince;
+    String receiverDistrict;
+    String receiverWard;
+
     Boolean activated;
     String createdBy;
     Instant createdAt;
