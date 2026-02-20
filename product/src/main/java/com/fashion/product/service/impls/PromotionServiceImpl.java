@@ -234,7 +234,7 @@ public class PromotionServiceImpl implements PromotionService{
     
     @Override
     // @Transactional(rollbackFor = ServiceException.class)
-    public void spinningQuantity(Map<UUID, Integer> promotions, UUID eventId) {
+    public void spinningQuantity(Map<UUID, Integer> promotions, UUID eventId, Boolean isRestore) {
         try {
             if (this.promotionRepository.existsByEventId(eventId)) {
                 log.warn("PRODUCT-SERVICE: Event {} already processed. Skipping.", eventId);
@@ -247,7 +247,7 @@ public class PromotionServiceImpl implements PromotionService{
                 String cacheKey = this.getCacheKey(promotionId);
                 try {
                     Long result = 0L;
-                    if(deductionQty > 0){
+                    if(isRestore){
                         // restore
                         result = stringRedisTemplate.execute(
                             scriptDecrementPromotion,

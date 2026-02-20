@@ -63,7 +63,7 @@ public class OrderServiceConsumer {
                 ack.acknowledge();
                 return SagaStateResponse.success();
             } 
-            this.promotionService.spinningQuantity(deductionPro, metadata.getEventId());
+            this.promotionService.spinningQuantity(deductionPro, metadata.getEventId(), false);
             ack.acknowledge();
             return SagaStateResponse.success();
         } catch (Exception e) {
@@ -104,7 +104,7 @@ public class OrderServiceConsumer {
                 ack.acknowledge();
                 return SagaStateResponse.success();
             } 
-            this.promotionService.spinningQuantity(deductionPro, metadata.getEventId());
+            this.promotionService.spinningQuantity(deductionPro, metadata.getEventId(), true);
             ack.acknowledge();
             return SagaStateResponse.success();
         } catch (Exception e) {
