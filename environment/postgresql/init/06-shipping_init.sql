@@ -13,9 +13,12 @@ CREATE TABLE IF NOT EXISTS shippings (
     provider VARCHAR(30) CHECK (provider IN ('GHN', 'GHTK', 'VTN', 'NINJA', 'SPEEDLINK')),
     shipping_at TIMESTAMP,
     shipping_fee DECIMAL(19, 2) DEFAULT 0,
-    status VARCHAR(30) CHECK (status IN ('PENDING', 'SHIPPING', 'DELIVERED', 'RETURNED')),
+    status VARCHAR(30) CHECK (status IN ('PENDING', 'SHIPPING', 'DELIVERED', 'RETURNED', 'FAILED')),
     tracking_code VARCHAR(100),
     order_id UUID NOT NULL,
+    order_code VARCHAR(50) NOT NULL,
+    order_created_at TIMESTAMP NOT NULL,
+    event_id UUID NOT NULL,
     activated BOOLEAN DEFAULT TRUE,
 
     -- Audit fields
@@ -28,11 +31,11 @@ CREATE TABLE IF NOT EXISTS shippings (
 ) PARTITION BY RANGE (created_at);
 
 -- Index for optimization
-CREATE UNIQUE INDEX idx_shipping_order_id_unique ON shippings(order_id, created_at);
+CREATE UNIQUE INDEX idx_shipping_order_created_at ON shippings(order_created_at);
 CREATE UNIQUE INDEX idx_shipping_code_unique ON shippings (tracking_code, created_at);
 
 -- Comment
-COMMENT ON COLUMN shippings.status IS 'Save status of Shipping including: PENDING, SHIPPING, DELIVERED, RETURNED';
+COMMENT ON COLUMN shippings.status IS 'Save status of Shipping including: PENDING, SHIPPING, DELIVERED, RETURNED, FAILED';
 COMMENT ON COLUMN shippings.provider IS 'Save provider of Shipping including: GHN, GHTK, VTN, NINJA, SPEEDLINK';
 
 -- 2. Table partitions for shippings by month

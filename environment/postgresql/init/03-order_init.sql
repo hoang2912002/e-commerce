@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS orders (
     -- Status fields
     status VARCHAR(50) CHECK (status IN ('PENDING', 'CONFIRMED', 'SHIPPING', 'DELIVERED', 'CANCELLED', 'RETURNED')),
     payment_status VARCHAR(50) CHECK (payment_status IN ('PENDING', 'SUCCESS', 'FAILED')),
-    shipping_status VARCHAR(50) CHECK (shipping_status IN ('WAITING', 'SHIPPING', 'DELIVERED', 'FAILED')),
+    shipping_status VARCHAR(50) CHECK (shipping_status IN ('PENDING', 'SHIPPING', 'DELIVERED', 'RETURNED', 'FAILED')),
     payment_method VARCHAR(100),
 
     -- Financial fields
