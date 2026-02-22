@@ -44,36 +44,57 @@ docker-compose -f environment/docker-compose-dev.yml down
     - *Password:* **123456**   
 - Click **Test Connection** (if using GUI tools), then **Connect**.
 
+**API Testing (Postman)**
+- This project includes a Postman collection file:
+```
+e commerce microservice.postman_collection.json
+```
+- To use it:
+1. Open Postman
+2. Click Import
+3. Select the file **e commerce microservice.postman_collection.json**
+4. Import the collection
+
+**System Architecture Diagram**
+- The project also provides an architecture design file:
+```
+Microservice_clothing_shop.drawio
+```
+- Open your browser and navigate to:
+    https://app.diagrams.net/
+- Upload **Microservice_clothing_shop.drawio**
 ## 🏭 Project Structure
 ```
 microservice-clothing-shop/
-├── api-gateway/            # Spring Cloud Gateway (routing, auth)
+├── api-gateway/                                     # Spring Cloud Gateway (routing, auth)
 │   ├── pom.xml
 │   └── src/main/java/
-├── identity-service/       # User management
+├── identity-service/                                # User management
 │   ├── pom.xml
 │   └── src/main/java/
-├── inventory-service/      # Inventory & stock management
+├── inventory-service/                               # Inventory & stock management
 │   ├── pom.xml
 │   └── src/main/java/
-├── order-service/          # Order management
+├── order-service/                                   # Order management
 │   ├── pom.xml
 │   └── src/main/java/
-├── notification-service/   # Notification management (email)
+├── notification-service/                            # Notification management (email)
 │   ├── pom.xml
 │   └── src/main/java/
-├── product-service/        # Product & shop management
+├── product-service/                                 # Product & shop management
 │   ├── pom.xml
 │   └── src/main/java/
-├── resource-service/       # File & resource management (images)
+├── resource-service/                                # File & resource management (images)
 │   ├── pom.xml
 │   └── src/main/java/
-├── payment-service/        # Payment processing & transaction handling
+├── payment-service/                                 # Payment processing & transaction handling
 │   ├── pom.xml
 │   └── src/main/java/
-└── shipping-service/       # Shipping & delivery management
-    ├── pom.xml
-    └── src/main/java/
+├── shipping-service/                                # Shipping & delivery management
+│   ├── pom.xml
+│   └── src/main/java/
+├── e commerce microservice.postman_collection.json  # Postman collection (API endpoints)
+└── Microservice_clothing_shop.drawio                # System architecture diagram (Draw.io)
 ```
 ## 🛠️ Technical Highlights & Key Features
 ### Backend Architecture
