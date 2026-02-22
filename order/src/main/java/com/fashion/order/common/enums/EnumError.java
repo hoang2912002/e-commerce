@@ -56,8 +56,12 @@ public enum EnumError {
     //----------------Kafka-------------------
     ORDER_KAFKA_REQUEST_TIME_OUT_WITH_BROKER("ORDER-KAFKA-REQUEST-TIME-OUT-WITH-BROKER","Can not connect to Kafka", HttpStatus.REQUEST_TIMEOUT),
     ORDER_KAFKA_DATA_SERIALIZATION_ERROR("ORDER-KAFKA-DATA-SERIALIZATION-ERROR","Can not connect to Kafka", HttpStatus.BAD_REQUEST),
+    
+    // Resilience4j
+    IDENTITY_RESILIENCE4J_CIRCUIT_BREAKER_OPEN("IDENTITY-RESILIENCE4J-CIRCUIT-BREAKER-OPEN", "Service is currently unavailable. Please try again later.", HttpStatus.SERVICE_UNAVAILABLE),
+    IDENTITY_RESILIENCE4J_RATE_LIMITER("IDENTITY-RESILIENCE4J-RATE-LIMITER", "Too many requests. Please try again later.", HttpStatus.TOO_MANY_REQUESTS),
+    IDENTITY_RESILIENCE4J_RETRY("IDENTITY-RESILIENCE4J-RETRY", "Service is currently unavailable. Retrying...", HttpStatus.SERVICE_UNAVAILABLE),
     ;
-
     String code;
     String defaultMessage;
     HttpStatus httpStatus;

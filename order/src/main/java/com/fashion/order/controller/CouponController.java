@@ -24,16 +24,22 @@ import com.fashion.order.dto.response.CouponResponse;
 import com.fashion.order.dto.response.PaginationResponse;
 import com.fashion.order.service.CouponService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+@Retry(name = "order-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "order-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "order-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/coupons")
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class CouponController {
+public class CouponController extends R4jFallback {
     CouponService couponService;
 
     @PostMapping("")
