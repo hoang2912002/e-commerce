@@ -28,16 +28,22 @@ import com.fashion.product.mapper.ProductMapper;
 import com.fashion.product.service.ProductService;
 
 import feign.Param;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+@Retry(name = "order-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "order-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "order-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequestMapping("/products")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class ProductController {
+public class ProductController extends R4jFallback {
     ProductService productService;
     ProductMapper productMapper;
 

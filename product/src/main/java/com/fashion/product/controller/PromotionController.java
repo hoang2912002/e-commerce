@@ -26,16 +26,22 @@ import com.fashion.product.entity.Promotion;
 import com.fashion.product.mapper.PromotionMapper;
 import com.fashion.product.service.PromotionService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+@Retry(name = "order-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "order-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "order-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequestMapping("/promotions")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class PromotionController {
+public class PromotionController extends R4jFallback {
     PromotionService promotionService;
     PromotionMapper promotionMapper;
 

@@ -95,8 +95,13 @@ public enum EnumError {
     PRODUCT_KAFKA_SAGA_COMPLETED_MESSAGE_ERROR("PRODUCT-KAFKA-SAGA-COMPLETED-MESSAGE-ERROR", "Unable to handle successful saga completion state", HttpStatus.BAD_REQUEST),
     PRODUCT_KAFKA_SAGA_FAILED_MESSAGE_ERROR("PRODUCT-KAFKA-SAGA-FAILED-MESSAGE-ERROR", "Unable to handle successful saga completion state", HttpStatus.BAD_REQUEST),
     PRODUCT_KAFKA_DATA_SERIALIZATION_ERROR("PRODUCT-KAFKA-DATA-SERIALIZATION-ERROR","Can not connect to Kafka", HttpStatus.BAD_REQUEST),
+    
+    // Resilience4j
+    IDENTITY_RESILIENCE4J_CIRCUIT_BREAKER_OPEN("IDENTITY-RESILIENCE4J-CIRCUIT-BREAKER-OPEN", "Service is currently unavailable. Please try again later.", HttpStatus.SERVICE_UNAVAILABLE),
+    IDENTITY_RESILIENCE4J_RATE_LIMITER("IDENTITY-RESILIENCE4J-RATE-LIMITER", "Too many requests. Please try again later.", HttpStatus.TOO_MANY_REQUESTS),
+    IDENTITY_RESILIENCE4J_RETRY("IDENTITY-RESILIENCE4J-RETRY", "Service is currently unavailable. Retrying...", HttpStatus.SERVICE_UNAVAILABLE),
     ;
-
+    
     String code;
     String defaultMessage;
     HttpStatus httpStatus;

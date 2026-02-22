@@ -26,16 +26,22 @@ import com.fashion.product.dto.response.PaginationResponse;
 import com.fashion.product.mapper.CategoryMapper;
 import com.fashion.product.service.CategoryService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+@Retry(name = "order-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "order-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "order-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequestMapping("/categories")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class CategoryController {
+public class CategoryController extends R4jFallback {
     CategoryService categoryService;
     CategoryMapper categoryMapper;
 
