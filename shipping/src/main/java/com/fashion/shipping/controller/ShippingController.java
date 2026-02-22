@@ -28,15 +28,22 @@ import com.fashion.shipping.dto.response.ShippingResponse.InnerTempShippingFeeRe
 import com.fashion.shipping.dto.response.internal.PaymentResponse;
 import com.fashion.shipping.service.ShippingService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+
+@Retry(name = "shipping-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "shipping-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "shipping-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequestMapping("/shippings")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class ShippingController {
+public class ShippingController extends R4jFallback {
     ShippingService shippingService;
     
     @GetMapping("/{id}")

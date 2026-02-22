@@ -191,7 +191,7 @@ public class ShippingGhnStrategy implements ShippingStrategy{
     }
 
     @Override
-    // @EventListener(ApplicationReadyEvent.class)
+    @EventListener(ApplicationReadyEvent.class)
     @Async("virtualExecutor")
     public void warmAddressCache(){
         try {
