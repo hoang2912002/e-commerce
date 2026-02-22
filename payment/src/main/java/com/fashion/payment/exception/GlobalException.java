@@ -27,6 +27,8 @@ import com.fashion.payment.common.enums.EnumError;
 import com.fashion.payment.common.response.ApiResponse;
 import com.fashion.payment.common.util.MessageUtil;
 
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -118,5 +120,51 @@ public class GlobalException {
                 .build();
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(res);
+    }
+
+    
+    /**
+     * 
+     * @param RequestNotPermitted.class => rate limiter
+     * @param CallNotPermittedException.class => circuit breaker
+     * 
+     */
+    @ExceptionHandler(value = {
+        CallNotPermittedException.class,
+        RequestNotPermitted.class,
+    })
+    public ResponseEntity<ApiResponse<Object>> handleCallNotPermitted(RuntimeException ex, HttpServletRequest request) {
+
+        String errorCode = null;
+        Map<String, Object> errors = new HashMap<>();
+        
+        String languageHeader = request.getHeader(HttpHeaders.ACCEPT_LANGUAGE);
+        Locale locale = request.getLocale();
+        LocaleContext localeContext = () -> locale;
+        String path = request.getRequestURI();
+        String message = "resilience4j.combined";
+
+        if (ex instanceof CallNotPermittedException cEx){
+            errorCode = EnumError.IDENTITY_RESILIENCE4J_CIRCUIT_BREAKER_OPEN.getCode();
+            message = messageUtil.getMessage("resilience4j.circuitBreaker.open", localeContext);
+            errors = Map.of("circuitBreaker", message);
+        } else if(ex instanceof RequestNotPermitted rEx){
+            errorCode = EnumError.IDENTITY_RESILIENCE4J_RATE_LIMITER.getCode();
+            message = messageUtil.getMessage("resilience4j.rateLimiter", localeContext);
+            errors = Map.of("rateLimiter", message);
+        }
+
+        ApiResponse<Object> res = ApiResponse.builder()
+                .success(false)
+                .code(HttpStatus.UNAUTHORIZED.value())
+                .errorCode(errorCode)
+                .message(message)
+                .path(path)
+                .errors(errors)
+                .timestamp(LocalDateTime.now())
+                .language(Objects.nonNull(languageHeader) ? languageHeader : defaultLanguage)
+                .build();
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(res);
     }
 }
