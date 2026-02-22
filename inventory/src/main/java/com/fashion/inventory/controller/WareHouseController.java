@@ -26,15 +26,21 @@ import com.fashion.inventory.dto.response.internal.AddressResponse;
 import com.fashion.inventory.mapper.WareHouseMapper;
 import com.fashion.inventory.service.WareHouseService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+@Retry(name = "inventory-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "inventory-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "inventory-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequestMapping("/wareHouses")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class WareHouseController {
+public class WareHouseController extends R4jFallback {
     WareHouseMapper wareHouseMapper;
     WareHouseService wareHouseService;
 
