@@ -1,7 +1,7 @@
 # Fashion Shop Backend (Spring Boot)
 
-## Overview
-🚀 Architected and developed a high-performance Java Spring Boot microservices platform powered by PostgreSQL and Kafka (KRaft mode, Zookeeper-free).
+## 🚀 Overview
+ Architected and developed a high-performance Java Spring Boot microservices platform powered by PostgreSQL and Kafka (KRaft mode, Zookeeper-free).
 Implemented secure API Gateway with JWT authentication and service-to-service communication via OpenFeign. Enhanced system throughput by leveraging distributed caching with Redisson-based locking to prevent cache stampede and protect the database under high concurrency. Optimized inter-service API aggregation using parallel execution with CompletableFuture and Java Virtual Threads, significantly reducing response latency and improving scalability.
 
 ## 📌 Getting Started
@@ -44,7 +44,7 @@ docker-compose -f environment/docker-compose-dev.yml down
     - *Password:* **123456**   
 - Click **Test Connection** (if using GUI tools), then **Connect**.
 
-## Project Structure
+## 🏭 Project Structure
 ```
 microservice-clothing-shop/
 ├── api-gateway/            # Spring Cloud Gateway (routing, auth)
@@ -75,7 +75,7 @@ microservice-clothing-shop/
     ├── pom.xml
     └── src/main/java/
 ```
-## 🚀 Technical Highlights & Key Features
+## 🛠️ Technical Highlights & Key Features
 ### Backend Architecture
 - Layered Architecture: Implemented a clean (Controller – Service – Repository) pattern for scalability and maintainability.
 - Core Entities Management: Full CRUD operations for Users, Products, Categories, Orders, Inventories, Promotions, and Shippings...
