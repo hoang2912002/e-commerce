@@ -106,6 +106,46 @@ spring:
       product:
         shop-management-created-success: com.product.shop.management.created.success
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        slidingWindowType: COUNT_BASED
+        permittedNumberOfCallsInHalfOpenState: 3
+        minimumNumberOfCalls: 5
+        waitDurationInOpenState: 50s
+        failureRateThreshold: 50
+        eventConsumerBufferSize: 10
+        recordExceptions:
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - com.fashion.identity.exception.ServiceException
+          - feign.FeignException
+        ignore-exceptions:
+          - com.fashion.identity.exception.KafkaException
+    instances:
+      identity-service:
+        baseConfig: default
+  retry:
+    configs:
+      default:
+        maxAttempts: 3              # Try max 3 times (1 original + 2 retries)
+        waitDuration: 2s            # Each retry waits 2s before the next attempt
+    instances:
+      identity-service:
+        baseConfig: default
+  ratelimiter:
+    configs:
+      default:
+        limitForPeriod: 1000           # Allow max 5 calls per refresh period
+        limitRefreshPeriod: 1s      # Refresh the rate limit every 1 second
+        timeoutDuration: 0s          # Don't wait for permission, fail immediately if limit is exceeded
+    instances:
+      identity-service:
+        baseConfig: default
+
 # logging:
 #   level:
 #     org.springframework.kafka: DEBUG

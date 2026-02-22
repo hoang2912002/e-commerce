@@ -11,6 +11,9 @@ import com.fashion.identity.dto.response.PermissionResponse;
 import com.fashion.identity.mapper.PermissionMapper;
 import com.fashion.identity.service.PermissionService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
@@ -28,11 +31,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 
+@Retry(name = "identity-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "identity-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "identity-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/permissions")
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class PermissionController {
+public class PermissionController extends R4jFallback {
     PermissionService permissionService;
     PermissionMapper permissionMapper;
 

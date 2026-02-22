@@ -14,6 +14,9 @@ import com.fashion.identity.mapper.UserMapper;
 import com.fashion.identity.service.UserService;
 
 import feign.Response;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -34,12 +37,14 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
-
+@Retry(name = "identity-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "identity-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "identity-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class UserController {
+public class UserController extends R4jFallback {
     UserService userService;
     UserMapper userMapper;
 

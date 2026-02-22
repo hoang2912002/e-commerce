@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fashion.identity.common.annotation.ApiMessageResponse;
+import com.fashion.identity.common.enums.EnumError;
 import com.fashion.identity.common.response.ApiResponse;
 import com.fashion.identity.dto.request.LoginRequest;
 import com.fashion.identity.dto.request.UserRequest;
@@ -16,12 +17,16 @@ import com.fashion.identity.dto.response.VerifyTokenResponse;
 import com.fashion.identity.dto.response.LoginResponse.LoginResponseUserData;
 import com.fashion.identity.entity.Role;
 import com.fashion.identity.entity.User;
+import com.fashion.identity.exception.ServiceException;
 import com.fashion.identity.mapper.RoleMapper;
 import com.fashion.identity.mapper.UserMapper;
 import com.fashion.identity.service.AuthenticateService;
 import com.fashion.identity.service.UserService;
 import com.nimbusds.jose.JOSEException;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -46,11 +51,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 
+@Retry(name = "identity-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "identity-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "identity-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class AuthenticateController {
+public class AuthenticateController extends R4jFallback {
     final AuthenticateService authenticateService;
     final UserService userService;
     final AuthenticationManagerBuilder authenticationManagerBuilder;

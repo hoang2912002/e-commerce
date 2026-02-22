@@ -29,15 +29,21 @@ import com.fashion.identity.entity.User;
 import com.fashion.identity.mapper.AddressMapper;
 import com.fashion.identity.service.AddressService;
 
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+@Retry(name = "identity-service", fallbackMethod = "resilience4jRetryFallback")
+@CircuitBreaker(name = "identity-service", fallbackMethod = "resilience4jCircuitBreakerFallback")
+@RateLimiter(name = "identity-service", fallbackMethod = "resilience4jRateLimiterFallback")
 @RestController
 @RequestMapping("/addresses")
 @RequiredArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
-public class AddressController {
+public class AddressController extends R4jFallback {
     AddressService addressService;
     AddressMapper addressMapper;
 

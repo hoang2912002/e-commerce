@@ -44,8 +44,13 @@ public enum EnumError {
     IDENTITY_INTERNAL_ERROR_CALL_API("IDENTITY-INTERNAL-ERROR-CALL-API", "Call Identity Service api error", HttpStatus.INTERNAL_SERVER_ERROR),
     IDENTITY_VALIDATION_ERROR("IDENTITY-VALIDATION-ERROR","Validation error",HttpStatus.BAD_REQUEST),
     IDENTITY_INVALID_FORMAT_UUID("IDENTITY-INVALID-FORMAT-UUID", "Wrong ID data type format", HttpStatus.BAD_REQUEST),
-    ;
 
+    // Resilience4j
+    IDENTITY_RESILIENCE4J_CIRCUIT_BREAKER_OPEN("IDENTITY-RESILIENCE4J-CIRCUIT-BREAKER-OPEN", "Service is currently unavailable. Please try again later.", HttpStatus.SERVICE_UNAVAILABLE),
+    IDENTITY_RESILIENCE4J_RATE_LIMITER("IDENTITY-RESILIENCE4J-RATE-LIMITER", "Too many requests. Please try again later.", HttpStatus.TOO_MANY_REQUESTS),
+    IDENTITY_RESILIENCE4J_RETRY("IDENTITY-RESILIENCE4J-RETRY", "Service is currently unavailable. Retrying...", HttpStatus.SERVICE_UNAVAILABLE),
+    ;
+    
     String code;
     String defaultMessage;
     HttpStatus httpStatus;
